@@ -6,7 +6,7 @@ export default function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   const isDashboard = pathname === '/app/dashboard';
-  const hideTopbar = isDashboard || pathname === '/app/orders';
+  const hideTopbar = isDashboard || pathname === '/app/orders' || pathname === '/app/production' || pathname === '/app/sales' || pathname === '/app/demand';
   return <div className="admin-shell">
     <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
     <div className="admin-main">

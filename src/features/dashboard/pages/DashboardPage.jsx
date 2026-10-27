@@ -2,14 +2,13 @@ import { Link, useOutletContext } from 'react-router-dom';
 import StatCard from '../../../components/ui/StatCard.jsx';
 import useOrders from '../../orders/hooks/useOrders.js';
 import { formatDeliveryDate, orderDescription } from '../../orders/utils/orderPresentation.js';
-import { dashboardSales, summarizeSales } from '../data/dashboardData.js';
+import useSales from '../../sales/hooks/useSales.js';
+import { summarizeSales } from '../../sales/utils/filterSales.js';
 
 const currency = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-const chartDays = ['Jue', 'Vie', 'Sáb', 'Dom'];
-const chartMax = 3000000;
+const chartDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const chartBase = 224;
 const chartHeight = 184;
-const gridValues = [3000000, 2000000, 1000000, 500000, 0];
 
 function compactCurrency(value) {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}M`;
@@ -18,7 +17,11 @@ function compactCurrency(value) {
 }
 
 function SalesChart({ summary }) {
-  const xForDay = (index) => 146 + index * 190;
+  const maxValue = Math.max(...Object.values(summary.byDay).flatMap((day) => [day.lechona, day.hayacas]), 0);
+  const gridStep = maxValue ? Math.max(1000, Math.ceil(maxValue / 4 / 1000) * 1000) : 1000;
+  const chartMax = gridStep * 4;
+  const gridValues = [4, 3, 2, 1, 0].map((step) => step * gridStep);
+  const xForDay = (index) => 126 + index * 108;
   const yForValue = (value) => chartBase - (value / chartMax) * chartHeight;
 
   return <section className="dashboard-card dashboard-chart" aria-labelledby="sales-chart-title">
@@ -31,8 +34,8 @@ function SalesChart({ summary }) {
     </div>
     <div className="dashboard-chart__canvas">
       <svg viewBox="0 0 900 286" role="img" aria-labelledby="chart-title chart-description">
-        <title id="chart-title">Ventas de lechona y hayacas de jueves a domingo</title>
-        <desc id="chart-description">Gráfico de barras agrupadas. Los valores provienen de los datos de demostración del panel.</desc>
+        <title id="chart-title">Ventas de lechona y hayacas por día de la semana</title>
+        <desc id="chart-description">Gráfico de barras agrupadas con los registros guardados en el módulo de Ventas.</desc>
         {gridValues.map((value) => {
           const y = yForValue(value);
           return <g key={value}>
@@ -54,7 +57,7 @@ function SalesChart({ summary }) {
                 <rect x={x} y={y} width="22" height={height} rx="3" fill={fill} />
               </g>;
             })}
-            <text className={`chart-day-label${day === 'Sáb' || day === 'Dom' ? ' chart-day-label--peak' : ''}`} x={center - 2} y="266" textAnchor="middle">{day}{day === 'Sáb' || day === 'Dom' ? ' ★' : ''}</text>
+            <text className="chart-day-label" x={center - 2} y="266" textAnchor="middle">{day}</text>
           </g>;
         })}
       </svg>
@@ -94,7 +97,8 @@ function RecentOrders({ orders, totalOrders }) {
 export default function DashboardPage() {
   const { openMenu } = useOutletContext();
   const { orders } = useOrders();
-  const summary = summarizeSales(dashboardSales);
+  const { sales } = useSales();
+  const summary = summarizeSales(sales);
   const recentOrders = [...orders].sort((a, b) => b.registeredDate.localeCompare(a.registeredDate) || b.orderNumber.localeCompare(a.orderNumber)).slice(0, 5);
   return <div className="dashboard-page">
     <button className="dashboard-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span/><span/><span/></button>

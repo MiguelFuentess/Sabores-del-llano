@@ -1,6 +1,6 @@
 # Sabores del Llano
 
-Base del frontend académico construida con React y Vite. El alcance actual se limita al enrutamiento y al shell administrativo compartido; las vistas funcionales, formularios, tablas con datos y operaciones siguen pendientes.
+Frontend académico construido con React y Vite para el sistema de gestión Sabores del Llano.
 
 ## Ejecutar
 
@@ -9,18 +9,16 @@ npm install
 npm run dev
 ```
 
-Para generar el bundle de producción, ejecuta 
-pm run build`. Para servir ese bundle localmente, usa 
-pm run preview`.
+Para generar el bundle de producción, ejecuta `npm run build`. Para servir ese bundle localmente, usa `npm run preview`.
 
 ## Rutas preparadas
 
 - `/app/dashboard` — Panel de Control
 - `/app/orders` — Pedidos
 - `/app/production` — Producción y análisis
-- `/app/sales` — Ventas
+- `/app/sales` — Ventas (CRUD frontend local)
 - `/app/demand` — Predicción de demanda
-- `/login` — acceso (placeholder)
+- `/login` — acceso de demostración
 - `/public` — portada (placeholder)
 
 Las páginas administrativas comparten menú lateral, encabezado superior, tipografía y tokens de color. En pantallas menores a 800 px, el menú se convierte en un cajón móvil.
@@ -41,8 +39,16 @@ La fuente original está en el ZIP entregado por el usuario. Incluye la portada 
 
 Los pedidos usan `localStorage` mediante el servicio del módulo. Los registros de demostración solo se cargan cuando el almacenamiento no contiene todavía la clave de pedidos; eliminar todos los pedidos deja una lista vacía incluso después de recargar. El panel de control lee el mismo servicio para el contador y los últimos pedidos.
 
+## Ventas
+
+Ventas utiliza el servicio compartido `src/features/sales/services/salesStorage.js` y el almacenamiento local `sabores-del-llano-sales-v1`. No carga ventas de demostración. Los registros tienen ID estable, número de recibo secuencial, fecha/hora, producto, cantidad, precio unitario y total calculado. Dashboard y Producción consultan esta misma fuente.
+
 ## Panel de control
 
-El panel calcula las ventas y cantidades desde sus datos demo, y lee el conteo y los pedidos recientes del servicio compartido del módulo Pedidos.
+El panel calcula ingresos, unidades y gráfico a partir de las ventas registradas, y lee pedidos desde el servicio compartido del módulo Pedidos.
+
+## Producción
+
+Los registros de producción y sobrantes se guardan por separado. El módulo consulta las ventas compartidas por fecha de operación; las ventas se muestran como actividad del día y no se atribuyen automáticamente a una hornada.
 
 

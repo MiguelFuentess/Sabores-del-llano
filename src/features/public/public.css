@@ -1,0 +1,245 @@
+.public-site {
+  --public-bg: #fafaed;
+  --public-cream: #f5f4de;
+  --public-cream-deep: #efeece;
+  --public-ink: #2d1e18;
+  --public-muted: #58413d;
+  --public-green: #3e6b48;
+  --public-button-green: #2e5a36;
+  --public-red: #c83e2b;
+  --public-gold: #d98a2b;
+  width: 100%;
+  min-height: 100vh;
+  overflow: clip;
+  color: var(--public-ink);
+  background: var(--public-bg);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.public-site *, .public-site *::before, .public-site *::after { box-sizing: border-box; }
+.public-site h1, .public-site h2, .public-site h3, .public-site p, .public-site figure { margin-top: 0; }
+.public-icon { display: inline-block; flex: 0 0 auto; font-family: 'Material Symbols Outlined'; font-size: 18px; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr; font-feature-settings: 'liga'; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+
+.public-header { position: fixed; z-index: 50; inset: 0 0 auto; height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 32px; border-bottom: 2px solid var(--public-gold); color: var(--public-bg); background: rgba(62,107,72,.96); box-shadow: 0 2px 8px rgba(44,29,24,.06); backdrop-filter: blur(16px); }
+.public-brand { display: inline-flex; min-width: max-content; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
+.public-brand > img { width: 36px; height: 36px; flex: 0 0 36px; object-fit: contain; }
+.public-brand > span { display: flex; flex-direction: column; gap: 3px; }
+.public-brand strong { color: #fafaed; font: 700 18px/1.05 Merriweather, Georgia, serif; }
+.public-brand small { color: #efeece; font-size: 9px; font-weight: 600; letter-spacing: .1em; }
+.public-nav { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.public-nav a { color: #efeece; font-size: 13px; font-weight: 600; text-decoration: none; transition: color .15s ease; white-space: nowrap; }
+.public-nav a:hover, .public-nav a.public-nav__active { color: #fafaed; font-weight: 700; }
+.public-contact-display { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; color: #fff; background: var(--public-button-green); font: 700 12px/1.2 'Plus Jakarta Sans', sans-serif; text-align: center; }
+.public-header__contact { min-height: 40px; padding: 0 16px; border-radius: 10px; background: var(--public-red); box-shadow: 0 4px 9px rgba(44,29,24,.16); white-space: nowrap; }
+.public-header__contact .public-icon { font-size: 15px; }
+
+.public-hero { display: flex; flex-direction: column; align-items: center; padding: 160px 32px 80px; border-bottom: 1px solid #efeece; background: linear-gradient(180deg,#f5f4de 0%,#fafaed 100%); text-align: center; }
+.public-hero__intro { width: min(100%, 960px); }
+.public-hero__eyebrow { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; margin-bottom: 17px; padding: 0 15px; border: 1px solid var(--public-gold); border-radius: 999px; color: var(--public-green); background: #efeece; box-shadow: 0 1px 4px rgba(44,29,24,.08); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.public-hero__eyebrow .public-icon { font-size: 15px; font-variation-settings: 'FILL' 1; }
+.public-hero h1 { margin: 0 0 16px; color: var(--public-ink); font: 700 56px/1.21 Merriweather, Georgia, serif; letter-spacing: -1.12px; }
+.public-hero h1 em { color: var(--public-red); font-weight: 400; }
+.public-hero__intro p { margin: 0 auto 24px; color: var(--public-muted); font-size: 18px; line-height: 1.55; }
+.public-hero__image { position: relative; width: min(100%, 1024px); height: 468px; margin: 0 0 40px; overflow: hidden; border: 4px solid var(--public-gold); border-radius: 24px; background: #ded3ba; box-shadow: 0 9px 18px rgba(44,29,24,.2); }
+.public-hero__image > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 55%; }
+.public-hero__image-labels { position: absolute; right: 16px; bottom: 14px; left: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.public-hero__image-labels span { display: inline-flex; min-height: 31px; align-items: center; gap: 5px; padding: 0 10px; border-radius: 999px; color: #fff; background: #d98a2b; box-shadow: 0 2px 6px rgba(44,29,24,.2); font-size: 10px; font-weight: 700; }
+.public-hero__image-labels span:last-child { background: var(--public-green); }
+.public-hero__image-labels .public-icon { font-size: 13px; }
+.public-hero__contact { min-height: 56px; margin-top: 0; padding: 0 24px; border-radius: 11px; box-shadow: 0 4px 9px rgba(44,29,24,.16); }
+.public-hero__contact .public-icon { font-size: 16px; }
+.public-qualities { width: min(100%, 896px); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-top: 37px; text-align: left; }
+.public-qualities > div { min-height: 74px; display: flex; align-items: center; gap: 10px; padding: 16px; border: 1px solid #efeece; border-radius: 16px; background: #f5f4de; box-shadow: 0 1px 4px rgba(44,29,24,.05); }
+.public-quality-icon { width: 40px; height: 40px; display: grid; flex: 0 0 40px; place-items: center; margin-top: 0; border-radius: 12px; color: var(--public-green); background: #efeece; }
+.public-quality-icon--red { color: var(--public-red); }
+.public-quality-icon--gold { color: var(--public-gold); }
+.public-quality-icon--green { color: var(--public-green); }
+.public-qualities > div span:last-child { display: flex; flex-direction: column; gap: 3px; }
+.public-qualities b { color: #2d1e18; font-size: 18px; line-height: 1.2; }
+.public-qualities small { color: #58413d; font-size: 14px; line-height: 1.4; }
+
+.public-specialties { padding: 96px 32px; background: var(--public-bg); scroll-margin-top: 80px; }
+.public-section-heading { max-width: 900px; margin: 0 auto 39px; text-align: center; }
+.public-specialties .public-section-heading { max-width: 672px; }
+.public-section-heading > span { display: block; margin-bottom: 7px; color: var(--public-gold); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.public-section-heading h2 { margin: 0 0 8px; color: var(--public-ink); font: 700 40px/1.2 Merriweather, Georgia, serif; letter-spacing: -.6px; }
+.public-section-heading p { margin: 0; color: var(--public-muted); font-size: 14px; line-height: 1.6; }
+.public-product-grid { width: min(100%, 1152px); display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 40px; margin: 0 auto; }
+.public-product-card { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 2px solid #efeece; border-radius: 24px; background: #f5f4de; box-shadow: 0 4px 8px rgba(44,29,24,.11); }
+.public-product-card__image { position: relative; height: 288px; overflow: hidden; background: #eee8d9; }
+.public-product-card__image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.public-product-card__badge, .public-product-card__rating { position: absolute; bottom: 12px; display: inline-flex; min-height: 27px; align-items: center; gap: 4px; padding: 0 9px; border-radius: 999px; color: #fff; background: var(--public-green); box-shadow: 0 2px 6px rgba(44,29,24,.2); font-size: 10px; font-weight: 700; }
+.public-product-card__badge { top: 12px; bottom: auto; left: 13px; }
+.public-product-card__rating { right: 12px; color: var(--public-ink); background: rgba(250,250,237,.92); font-size: 12px; }
+.public-product-card__rating .public-icon { color: #f2c261; font-size: 13px; font-variation-settings: 'FILL' 1; }
+.public-product-card__content { display: flex; flex: 1; flex-direction: column; gap: 16px; padding: 24px; }
+.public-product-card__details h3 { margin: 0; color: var(--public-ink); font: 700 24px/1.35 Merriweather, Georgia, serif; }
+.public-product-card__description { margin: 4px 0 0; color: var(--public-muted); font-size: 16px; line-height: 1.5; }
+.public-product-options-panel { padding: 16px; border-radius: 16px; background: #efeece; }
+.public-options-label { display: block; margin-bottom: 8px; color: var(--public-green); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.public-product-options { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.public-product-options li { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border-radius: 12px; background: #fafaed; box-shadow: 0 1px 3px rgba(44,29,24,.08); }
+.public-product-options li > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.public-product-options li strong { color: var(--public-ink); font-size: 18px; line-height: 1.25; }
+.public-product-options li small { color: var(--public-muted); font-size: 11px; line-height: 1.3; }
+.public-product-options li > b { flex: 0 0 auto; color: var(--public-red); font-size: 20px; white-space: nowrap; }
+.public-quote { color: #c78c31; font-size: 12px; font-weight: 700; }
+.public-product-card__contact { width: 100%; min-height: 50px; margin-top: 0; border-radius: 11px; box-shadow: 0 4px 9px rgba(44,29,24,.14); background: var(--public-button-green); font-size: 14px; }
+.public-product-card__contact .public-icon { font-size: 15px; }
+
+.public-tradition { padding: 85px 32px 96px; background: var(--public-cream); scroll-margin-top: 80px; }
+.public-tradition .public-section-heading { margin-bottom: 35px; }
+.public-craft-grid { width: min(100%, 1152px); display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 17px; margin: 0 auto; }
+.public-craft-card { min-height: 220px; padding: 23px 23px 20px; border-radius: 15px; background: #fff8f6; box-shadow: 0 1px 4px rgba(44,29,24,.035); }
+.public-craft-card__number { display: block; margin-bottom: 5px; color: #f4dcd2; font: 700 44px/.95 Merriweather, Georgia, serif; letter-spacing: -2px; }
+.public-craft-card__icon { width: 35px; height: 35px; display: grid; place-items: center; margin-bottom: 11px; border-radius: 8px; color: var(--public-red); background: #fdece7; }
+.public-craft-card__icon--green { color: var(--public-green); background: #e9f1e6; }
+.public-craft-card__icon--brown { color: #8d4d1c; background: #f7eadb; }
+.public-craft-card h3 { margin: 0 0 6px; color: #392b25; font: 700 18px/1.4 Merriweather, Georgia, serif; }
+.public-craft-card p { margin: 0; color: #65534c; font-size: 14px; line-height: 1.45; }
+
+.public-planner { padding: 93px 32px 85px; background: #fff8f6; }
+.public-planner-card { width: min(100%, 1024px); min-height: 340px; display: flex; align-items: stretch; justify-content: space-between; gap: 30px; margin: 0 auto; padding: 42px; border: 1px solid #ebe6c4; border-radius: 24px; background: #fbfaeb; box-shadow: 0 5px 11px rgba(44,29,24,.12); }
+.public-planner__form { width: 62%; align-self: center; }
+.public-section-eyebrow { color: var(--public-red); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.public-planner__form h2 { max-width: 460px; margin: 4px 0 6px; color: var(--public-ink); font: 400 32px/1.25 Merriweather, Georgia, serif; letter-spacing: -.5px; }
+.public-planner__form > p { max-width: 500px; margin: 0 0 19px; color: #65544e; font-size: 14px; line-height: 1.45; }
+.public-planner__label { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 8px; color: #55443b; font-size: 18px; }
+.public-planner__label strong { color: var(--public-red); font: 700 54px/.9 Merriweather, Georgia, serif; }
+.public-range { position: relative; height: 7px; overflow: hidden; border-radius: 999px; background: #e3d8c9; }
+.public-range span { width: 16%; height: 100%; display: block; border-radius: inherit; background: var(--public-red); }
+.public-range i { position: absolute; top: 50%; left: 16%; width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: var(--public-red); box-shadow: 0 1px 4px rgba(44,29,24,.25); transform: translate(-50%,-50%); }
+.public-range-marks { display: flex; justify-content: space-between; margin-top: 7px; color: #857a6e; font-size: 9px; }
+.public-planner__presets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+.public-planner__presets span { padding: 6px 10px; border: 1px solid #eee3d3; border-radius: 7px; color: #56473e; background: #f6f1e6; font-size: 9px; }
+.public-recommendation { width: 37%; align-self: center; padding: 22px; border: 1px solid #f2ded4; border-radius: 16px; background: #fff0e9; }
+.public-recommendation h3 { margin: 0 0 14px; color: #49352c; font: 600 20px/1.4 'Plus Jakarta Sans', sans-serif; }
+.public-recommendation__item { display: flex; align-items: flex-start; gap: 10px; color: var(--public-red); }
+.public-recommendation__item > .public-icon { margin-top: 2px; }
+.public-recommendation__item div { display: flex; flex-direction: column; gap: 4px; }
+.public-recommendation__item b { color: #49352c; font-size: 18px; line-height: 1.4; }
+.public-recommendation__item small { color: #77675e; font-size: 11px; }
+.public-recommendation__cost { margin-top: 20px; }
+.public-recommendation__cost strong { color: var(--public-red); font: 700 24px/1.2 Merriweather, Georgia, serif; }
+
+.public-delivery { padding: 78px 32px 98px; background: #fff8f6; scroll-margin-top: 80px; }
+.public-delivery .public-section-heading { max-width: 850px; margin-bottom: 23px; }
+.public-delivery .public-section-heading > span { color: var(--public-red); }
+.public-delivery__options { width: min(100%, 960px); display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; margin: 0 auto 21px; }
+.public-delivery__options article { min-height: 114px; padding: 18px; border-radius: 14px; background: #fff0e9; }
+.public-delivery__options article:nth-child(2) { background: #edf3e8; }
+.public-delivery__options h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 7px; color: var(--public-red); font: 600 18px/1.35 'Plus Jakarta Sans', sans-serif; }
+.public-delivery__options article:nth-child(2) h3 { color: var(--public-green); }
+.public-delivery__options p { margin: 0; color: #66544d; font-size: 14px; line-height: 1.4; }
+.public-delivery__map-title { margin: 0 auto 12px; color: #47372e; font: 700 14px/1.4 Merriweather, Georgia, serif; text-align: center; }
+.public-coverage-map { position: relative; width: min(100%, 900px); height: 230px; display: flex; align-items: flex-end; justify-content: center; margin: 0 auto; padding: 13px; border: 5px solid #fff; border-radius: 15px; background-position: center; background-size: cover; box-shadow: 0 2px 7px rgba(44,29,24,.11); }
+.public-coverage-map > span { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; color: #684d3e; background: rgba(255,248,246,.94); box-shadow: 0 2px 7px rgba(44,29,24,.16); font-size: 10px; font-weight: 600; text-align: center; }
+.public-coverage-map .public-icon { color: var(--public-red); font-size: 14px; }
+
+.public-final-cta { display: flex; flex-direction: column; align-items: center; padding: 36px 24px 31px; color: var(--public-bg); background: var(--public-green); text-align: center; }
+.public-final-cta > span { margin-bottom: 8px; color: #efeece; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.public-final-cta h2 { margin: 0 0 9px; color: #fafaed; font: 700 24px/1.35 Merriweather, Georgia, serif; }
+.public-final-cta p { max-width: 680px; margin: 0 0 14px; color: #e6ead7; font-size: 14px; line-height: 1.5; }
+.public-final-cta .public-contact-display { min-height: 37px; padding: 0 19px; border-radius: 9px; background: var(--public-red); font-size: 10px; }
+.public-final-cta .public-icon { font-size: 14px; }
+
+.public-footer { padding: 34px 32px 17px; border-top: 1px solid #efeece; color: var(--public-muted); background: var(--public-cream); }
+.public-footer__columns { width: min(100%, 1152px); display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 46px; margin: 0 auto 27px; }
+.public-footer__brand > div { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.public-footer__brand img { width: 26px; height: 26px; object-fit: contain; }
+.public-footer__brand strong { color: var(--public-red); font: 700 16px Merriweather, Georgia, serif; }
+.public-footer__columns h3 { margin: 0 0 7px; color: #49382e; font: 600 18px/1.4 'Plus Jakarta Sans', sans-serif; }
+.public-footer__columns p { margin: 0 0 7px; color: #76665e; font-size: 14px; line-height: 1.45; }
+.public-footer__copyright { width: min(100%, 1152px); margin: 0 auto; padding-top: 13px; border-top: 1px solid #e7e4cc; color: #81776a; font-size: 9px; }
+
+@media (max-width: 1050px) {
+  .public-header { gap: 14px; padding-inline: 22px; }
+  .public-nav { gap: 17px; }
+  .public-nav a { font-size: 11px; }
+  .public-hero__image { height: min(45vw, 430px); min-height: 310px; }
+  .public-product-grid { gap: 18px; }
+  .public-product-card__content { padding-inline: 17px; }
+}
+@media (max-width: 760px) {
+  .public-header { height: auto; min-height: 80px; flex-wrap: wrap; gap: 9px 16px; padding: 9px 18px 10px; }
+  .public-brand { gap: 7px; }
+  .public-brand strong { font-size: 15px; }
+  .public-brand small { font-size: 8px; }
+  .public-brand > img { width: 31px; height: 31px; flex-basis: 31px; }
+  .public-header__contact { min-height: 34px; padding-inline: 10px; font-size: 10px; }
+  .public-nav { order: 3; width: 100%; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(239,238,206,.25); }
+  .public-nav a { font-size: 10px; }
+  .public-hero { padding: 143px 20px 57px; }
+  .public-hero h1 { font-size: clamp(34px, 7vw, 48px); }
+  .public-hero__intro p { max-width: 650px; font-size: 14px; }
+  .public-desktop-break { display: none; }
+  .public-hero__image { width: 100%; height: min(58vw, 390px); min-height: 255px; margin-bottom: 28px; }
+  .public-qualities { gap: 9px; margin-top: 28px; }
+  .public-qualities > div { min-height: 84px; gap: 7px; padding: 12px 10px; }
+  .public-qualities b { font-size: 10px; }
+  .public-qualities small { font-size: 9px; }
+  .public-specialties, .public-tradition { padding: 63px 20px 70px; }
+  .public-section-heading h2 { font-size: clamp(27px, 5vw, 34px); }
+  .public-section-heading p { font-size: 12px; }
+  .public-product-grid { grid-template-columns: 1fr; max-width: 570px; }
+  .public-product-card__image { height: 300px; }
+  .public-craft-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .public-planner { padding: 65px 20px; }
+  .public-planner-card { flex-direction: column; gap: 25px; padding: 27px; }
+  .public-planner__form, .public-recommendation { width: 100%; }
+  .public-delivery { padding: 63px 20px 72px; }
+  .public-coverage-map { height: 200px; }
+}
+@media (max-width: 480px) {
+  .public-header { padding-inline: 14px; }
+  .public-header__contact { min-height: 31px; gap: 4px; padding: 0 8px; font-size: 9px; }
+  .public-nav { overflow-x: auto; justify-content: flex-start; gap: 17px; padding-bottom: 3px; }
+  .public-nav a { flex: 0 0 auto; }
+  .public-hero { padding: 137px 14px 47px; }
+  .public-hero__eyebrow { min-height: 29px; margin-bottom: 13px; font-size: 9px; }
+  .public-hero h1 { font-size: 34px; letter-spacing: -.8px; }
+  .public-hero__intro p { font-size: 12px; }
+  .public-hero__image { height: 245px; min-height: auto; border-width: 3px; border-radius: 13px; }
+  .public-hero__image-labels { right: 8px; bottom: 8px; left: 8px; gap: 6px; }
+  .public-hero__image-labels span { min-height: 25px; gap: 3px; padding-inline: 7px; font-size: 8px; }
+  .public-hero__contact { min-height: 44px; margin-top: 0; padding-inline: 17px; font-size: 11px; }
+  .public-qualities { grid-template-columns: 1fr; width: min(100%, 350px); margin-top: 22px; }
+  .public-qualities > div { min-height: 64px; padding: 12px 14px; }
+  .public-qualities b { font-size: 11px; }
+  .public-qualities small { font-size: 9px; }
+  .public-specialties, .public-tradition { padding: 52px 14px 58px; }
+  .public-section-heading { margin-bottom: 26px; }
+  .public-section-heading > span { font-size: 9px; }
+  .public-section-heading h2 { font-size: 27px; }
+  .public-section-heading p { font-size: 11px; }
+  .public-product-card__image { height: 235px; }
+  .public-product-card__content { padding: 16px 13px 17px; }
+  .public-product-card h3 { font-size: 18px; }
+  .public-product-card__description { min-height: 0; font-size: 11px; }
+  .public-product-options li { gap: 7px; padding-inline: 8px; }
+  .public-product-options li strong { font-size: 10px; }
+  .public-product-options li small { font-size: 8px; }
+  .public-product-options li > b { font-size: 11px; }
+  .public-product-card__contact { min-height: 44px; font-size: 10px; }
+  .public-craft-grid { gap: 9px; }
+  .public-craft-card { min-height: 210px; padding: 15px 13px; }
+  .public-craft-card__number { font-size: 37px; }
+  .public-craft-card h3 { font-size: 12px; }
+  .public-craft-card p { font-size: 9px; }
+  .public-planner { padding: 46px 14px; }
+  .public-planner-card { padding: 20px 16px; border-radius: 17px; }
+  .public-planner__form h2 { font-size: 24px; }
+  .public-range-marks { font-size: 7px; }
+  .public-planner__presets span { font-size: 8px; }
+  .public-recommendation { padding: 17px; }
+  .public-delivery { padding: 50px 14px 56px; }
+  .public-delivery__options { grid-template-columns: 1fr; }
+  .public-delivery__options article { min-height: auto; padding: 15px; }
+  .public-delivery__options h3 { font-size: 13px; }
+  .public-coverage-map { height: 170px; padding: 8px; }
+  .public-coverage-map > span { font-size: 8px; }
+  .public-final-cta { padding: 31px 17px; }
+  .public-final-cta h2 { font-size: 19px; }
+  .public-footer { padding: 27px 17px 15px; }
+  .public-footer__columns { grid-template-columns: 1fr; gap: 15px; }
+}
