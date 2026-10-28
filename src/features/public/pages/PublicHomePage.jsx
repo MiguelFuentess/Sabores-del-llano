@@ -178,7 +178,7 @@ export default function PublicHomePage() {
         </div>
         <h3 className="public-delivery__map-title">Zona de Cobertura y Domicilios</h3>
         <div className="public-coverage-map" style={{ backgroundImage: `url("${assets.coverageMap}")` }} role="img" aria-label="Mapa de cobertura de domicilios en Acacías, Meta y zonas aledañas del Llano">
-          <span><Icon>pin_drop</Icon>Despachos en Acacías, Meta y zonas aledañas del Llano</span>
+          <span><Icon>pin_drop</Icon>Despachos en Acacías, Meta y zonas aledañas</span>
         </div>
       </section>
 

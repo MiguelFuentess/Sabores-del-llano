@@ -13,6 +13,7 @@ import { filterSales, formatCOP, formatSaleDate, formatSaleTime, summarizeSales 
 const countFormat = new Intl.NumberFormat('es-CO');
 
 function PlusIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>; }
+function DownloadIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 16.5v2.25A2.25 2.25 0 0 0 6.25 21h11.5A2.25 2.25 0 0 0 20 18.75V16.5" /></svg>; }
 function EditIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-.8L19.5 7.7a2.1 2.1 0 0 0-3-3L5 16.2 4 20Z" /></svg>; }
 function TrashIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3" /></svg>; }
 
@@ -106,7 +107,7 @@ export default function SalesPage() {
 
   return <div className="sales-page">
     <button className="orders-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span /><span /><span /></button>
-    <PageHeader title="Ventas" description="Consulta el historial de ventas y registra las operaciones efectivamente realizadas." actions={<Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar venta</Button>} />
+    <PageHeader title="Ventas" description="Consulta el historial de ventas y registra las operaciones efectivamente realizadas." actions={<><Button variant="quiet" className="sales-report-button" aria-disabled="true" title="Exportación disponible en una etapa posterior"><DownloadIcon />Descargar reporte</Button><Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar venta</Button></>} />
 
     <section className="sales-metrics" aria-label="Métricas principales">
       <StatCard label="Total ventas (período)" value={formatCOP(summary.total)} detail={`${countFormat.format(summary.count)} transacciones registradas`} />

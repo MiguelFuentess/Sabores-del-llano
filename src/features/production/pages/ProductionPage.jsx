@@ -23,6 +23,7 @@ function periodLabel(period) {
 }
 
 function PlusIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>; }
+function DownloadIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 16.5v2.25A2.25 2.25 0 0 0 6.25 21h11.5A2.25 2.25 0 0 0 20 18.75V16.5" /></svg>; }
 
 function ProductionChart({ records, sales }) {
   const byDate = records.reduce((groups, record) => {
@@ -69,11 +70,11 @@ function ProductionHistory({ records, sales }) {
   return <section className="production-history production-card" aria-labelledby="production-history-title">
     <div className="production-history__ribbon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg><h2 id="production-history-title">HISTORIAL DE PRODUCCIÓN Y BALANCE DE VENTAS</h2></div>
     <div className="production-table-wrap"><table className="production-table">
-      <thead><tr><th scope="col">Fecha y producto</th><th scope="col">Cant. producida</th><th scope="col">Ventas en fecha</th><th scope="col">Sobrantes / merma</th><th scope="col">Referencia</th></tr></thead>
+      <thead><tr><th scope="col">Fecha y producto</th><th scope="col">Cant. producida</th><th scope="col">Cant. vendida</th><th scope="col">Sobrantes / merma</th><th scope="col">Rendimiento / estado</th></tr></thead>
       <tbody>{groupedProduction.length ? groupedProduction.map((record) => {
         const productLabel = PRODUCTION_PRODUCTS.find(({ value }) => value === record.product)?.label ?? 'Producto';
         const dateSales = salesByDateProduct[`${record.date}:${record.product}`] ?? 0;
-        return <tr key={record.id}><td><strong>{productLabel}</strong><small>{formatDate(record.date)}</small></td><td>{record.quantity} uds</td><td title="Ventas registradas en esa fecha; pueden incluir existencias anteriores">{dateSales} uds<small className="production-unavailable">Fecha de venta, no lote</small></td><td>{record.leftovers} uds</td><td className="production-unavailable">No asignadas a una hornada</td></tr>;
+        return <tr key={record.id}><td><strong>{productLabel}</strong><small>{formatDate(record.date)}</small></td><td>{record.quantity} uds</td><td title="Ventas registradas en esa fecha; pueden incluir existencias anteriores">{dateSales} uds<small className="production-unavailable">Fecha de venta, no lote</small></td><td>{record.leftovers} uds</td><td className="production-unavailable">Sin lote asignado</td></tr>;
       }) : <tr><td className="production-table__empty" colSpan="5">No hay registros de producción para los filtros seleccionados.</td></tr>}</tbody>
     </table></div>
   </section>;
@@ -119,7 +120,7 @@ export default function ProductionPage() {
 
   return <div className="production-page">
     <button className="orders-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span /><span /><span /></button>
-    <PageHeader title="Producción y Análisis" description="Balance de unidades producidas vs. vendidas y análisis de rendimiento para toma de decisiones artesanales." actions={<Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar producción</Button>} />
+    <PageHeader title="Producción y Análisis" description="Balance de unidades producidas vs. vendidas y análisis de rendimiento para toma de decisiones artesanales." actions={<><Button variant="quiet" className="production-report-button" aria-disabled="true" title="Exportación disponible en una etapa posterior"><DownloadIcon />Descargar reporte</Button><Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar producción</Button></>} />
 
     <section className="production-metrics" aria-label="Indicadores de producción">
       <StatCard label="Total producido (período)" value={`${totals.produced} uds`} detail={<><span className="production-product-total production-product-total--hayacas">{totals.producedByProduct.hayacas} Hayacas</span><span className="production-product-total production-product-total--lechona">{totals.producedByProduct.lechona} Lechona</span></>} />

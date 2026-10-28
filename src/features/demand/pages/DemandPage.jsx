@@ -10,6 +10,10 @@ function BulbIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.7 17h4.6M12 3v1m6.4 1.6-.7.7M21 12h-1M4 12H3m3.3-5.7-.7-.7m2.8 9.9a5 5 0 1 1 7.1 0l-.5.5a3.4 3.4 0 0 0-1 2.4v.5a2 2 0 1 1-4 0v-.5a3.4 3.4 0 0 0-1-2.4l-.5-.5Z" /></svg>;
 }
 
+function DownloadIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 16.5v2.25A2.25 2.25 0 0 0 6.25 21h11.5A2.25 2.25 0 0 0 20 18.75V16.5" /></svg>;
+}
+
 export default function DemandPage() {
   const { openMenu } = useOutletContext();
 
@@ -58,7 +62,10 @@ export default function DemandPage() {
     <section className="demand-card demand-result" aria-labelledby="demand-result-title">
       <div className="demand-result__heading">
         <h2 id="demand-result-title">Resultado de la estimación</h2>
-        <span className="demand-demo-badge"><i />Vista demostrativa</span>
+        <div className="demand-result__actions">
+          <Button variant="quiet" className="demand-report-button" aria-disabled="true" title="Exportación disponible en una etapa posterior"><DownloadIcon />Descargar reporte</Button>
+          <span className="demand-demo-badge"><i />Vista demostrativa</span>
+        </div>
       </div>
       <hr />
       <div className="demand-result__value">
@@ -66,9 +73,15 @@ export default function DemandPage() {
         <strong>180 unidades</strong>
         <span>Valor estático de muestra; no corresponde a un cálculo.</span>
       </div>
+      <div className="demand-plan-wrap">
+        <table className="demand-plan-table">
+          <thead><tr><th scope="col">Día</th><th scope="col">Producto</th><th scope="col">Demanda estimada</th><th scope="col">Sobrantes disponibles</th><th scope="col">Producción sugerida</th></tr></thead>
+          <tbody><tr><td colSpan="5">La planificación semanal estará disponible cuando se habilite la generación de estimaciones.</td></tr></tbody>
+        </table>
+      </div>
       <div className="demand-recommendation">
         <BulbIcon />
-        <div><h3>Recomendación para la producción</h3><p>Utiliza esta cantidad como referencia visual. La vista aún no genera estimaciones ni recomendaciones reales.</p></div>
+        <div><h3>Recomendaciones explicables sobre las cantidades propuestas</h3><p>Este espacio mostrará los motivos de las cantidades propuestas cuando se incorpore la lógica de estimación. Actualmente la vista es estática y no calcula demanda ni recomendaciones.</p></div>
       </div>
     </section>
   </div>;

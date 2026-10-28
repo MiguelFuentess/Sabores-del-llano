@@ -212,6 +212,8 @@ a { color: inherit; }
 .production-page .page-header h1 { font-size: clamp(25px, 2.4vw, 32px); }
 .production-page .page-header p { max-width: 680px; font-size: 12px; }
 .production-page .page-header__actions .button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.production-report-button { color: #463f38; border-color: #e0d7c6; background: #faf8f5; }
+.production-report-button:hover { background: #eae6d8; }
 .production-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; }
 .production-metrics .stat-card { min-width: 0; min-height: 128px; padding: 18px; background: #fff; border-color: #ece8df; }
 .production-metrics .stat-card__label { color: #969188; font-size: 10px; }
@@ -316,6 +318,8 @@ a { color: inherit; }
 .sales-page .page-header p { margin-top: 4px; font-size: 12px; }
 .sales-page .page-header__actions .button { min-height: 40px; border-radius: 8px; font-size: 12px; }
 .sales-page .page-header__actions .button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.sales-report-button { color: #463f38; border-color: #e0d7c6; background: #faf8f5; }
+.sales-report-button:hover { background: #eae6d8; }
 .sales-page .button--primary { background: #2a5537; }
 .sales-page .button--primary:hover { background: #23462e; }
 .sales-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
@@ -441,12 +445,22 @@ a { color: inherit; }
 .demand-config__action .button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .demand-result { gap: 18px; }
 .demand-result__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.demand-result__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.demand-report-button { min-height: 34px; padding: 6px 11px; color: #463f38; border-color: #e0d7c6; background: #faf8f5; font-size: 11px; }
+.demand-report-button:hover { background: #eae6d8; }
+.demand-report-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .demand-demo-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px; color: #2d6a4f; background: #e5f0e9; font-size: 10px; font-weight: 600; white-space: nowrap; }
 .demand-demo-badge i { width: 7px; height: 7px; border-radius: 50%; background: #2d6a4f; }
 .demand-result__value { display: flex; flex-direction: column; gap: 7px; }
 .demand-result__value p { margin: 0; color: #63605b; font-size: 12px; }
 .demand-result__value strong { color: #23583e; font-size: 34px; font-weight: 800; letter-spacing: -.6px; line-height: 1.15; }
 .demand-result__value > span { color: #827b72; font-size: 10px; }
+.demand-plan-wrap { overflow-x: auto; border: 1px solid #e9e4de; border-radius: 11px; }
+.demand-plan-table { width: 100%; min-width: 690px; border-collapse: collapse; text-align: left; }
+.demand-plan-table thead { border-bottom: 1px solid #e9e4de; background: #faf8f5; }
+.demand-plan-table th { padding: 12px 14px; color: #544b43; font-size: 10px; font-weight: 700; letter-spacing: .035em; white-space: nowrap; }
+.demand-plan-table th:nth-child(n+3) { text-align: right; }
+.demand-plan-table td { padding: 19px 14px; color: #827b72; font-size: 11px; text-align: center; }
 .demand-recommendation { display: flex; align-items: flex-start; gap: 12px; padding: 15px; border: 1px solid #ece6de; border-radius: 11px; background: #faf8f5; }
 .demand-recommendation > svg { width: 17px; height: 17px; flex: 0 0 17px; margin-top: 2px; fill: none; stroke: #7a746d; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .demand-recommendation h3 { margin: 0; color: #201d1a; font-size: 12px; font-weight: 700; }
