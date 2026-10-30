@@ -3,7 +3,7 @@ import '../public.css';
 const assets = {
   emblem: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAVp0wQ9txKLXiOp8QmX-Yequc5L647xMa_4uyIbTLFEw54IahINA5IXhNj4prgSwd-VuaPaW22DT_zPG1FjSMy7o_LCn8UNeTuq5d4HmPqU_iNNDJZ7J4sfaGegfJ9BvHistIIRB_IXpLExr8r_MD-AxB0HJbxGlE49J2JzKybp_taXPpiXjDZrF58wkppiQfD9U4gDYFg1h3bFamJUSYeZaVeBQ5o9fJggpmEwJj7CHVJGY1oecHR',
   hero: 'https://lh3.googleusercontent.com/aida-public/AB6AXuALJSuV-syUuNvHiYjzdJZn3B-qySu4PJHFghYzmEghd3kxa4vzOoq3SdHCcPfJHoxlHOIkyQm6mSZKSsdn0ThucP9Vqs6XQ_aj5PJXdysxIIQnSaS-RKS85dxmhfN41B0oJwNaLv9-dweAf2-zncmgN5sOKHjxj7-Gq6TMxeWhiFoVRRmMltCORrWPdrflQIACwKqss2Fm3yfJXzRCqd_sslSLVwZwT0Za0V4jgYaUXxJzanKOOtxy',
-  lechona: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCnxEuzukHDu2tgmq-GuQFhQLkOInf1nWFdSDS7K4H5a-_XzMSV1HRGJEYQ_LvPFbRHKbi0aQ9wmdxzHEhTWZwo83a9Y8S_TceQxiS_87IuFFfvNX_b84Or_igjqpQjRMIyylawxfFW-VLr2Qx8GHV7njLgit0Mhe5IyEfRq8VTdQmVjW_x0fL3D7LrMSNwDHFHu6529RUrD4MjH_6niVVCbSUAK49wBWXVNljtY38CL9wIiUaklpty',
+  lechona: 'https://static.wixstatic.com/media/a7501f_31dbd16b1ca14a3a8144b42f93c77715~mv2.jpg/v1/fill/w_550,h_389,al_c,q_80,enc_avif,quality_auto/a7501f_31dbd16b1ca14a3a8144b42f93c77715~mv2.jpg',
   hayacas: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDZm58gnReNPK6QEHAYfJD5AlfzZF9OznFy74N7Ce-BykRKOxNEsxuYLoqrJ7kZuNvRImuqs4Xhr279bRpzEu1HqM8wtjBajbolK2fLT12IZoym3IKmHgNJI4lDdfa92rG1gKY7Dkowe7dBQ1olKkz5BFHv_AZLyd9KKjQC63OIQI2rqFN_q33DranprNT1QV1HBm1nm6RiJ_Qs5Y-t9cQ0uL0JhMqQNeiGtX-FiD05Zy8Y_1i-vYld',
   coverageMap: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCfZD_nEJ6LoBKyTqBsL_3RgUPaZhTmh2RR-W7EjRB7jJNfJ4W5sonPJdNAGJnZs2AyGIj58vNqLBoQuR0ij8OwH637A6coESTgO7wFvGx3y9nMiEkix3aI58HV9umC3-8Pum_JjWMdC9IynvmccK9BdZgRyY_azktlluQMldoamDcULDZHGLy7q0-J1en_keCZwcmX_v88_cPRTtVTNb93i9fPghkYExK-ROVj9ow',
 };
@@ -173,7 +173,7 @@ export default function PublicHomePage() {
           <p>Horneamos por lotes artesanales para garantizar máxima frescura. Recomendamos reservar tus platos con anticipación para los fines de semana.</p>
         </div>
         <div className="public-delivery__options">
-          <article><h3><Icon>calendar_today</Icon>Viernes a Domingo y Festivos</h3><p>Despacho regular de porciones personales y combos familiares desde las 7:30 AM hasta agotar existencias del día.</p></article>
+          <article><h3><Icon>calendar_today</Icon>Sabado, Domingo y Festivos</h3><p>Despacho regular de porciones personales y combos familiares desde las 7:30 AM hasta agotar existencias del día.</p></article>
           <article><h3><Icon>event_available</Icon>Eventos Todos los Días</h3><p>Cojines y pedidos masivos (desde 20 porciones) se despachan de Lunes a Domingo con reserva previa de 48 horas.</p></article>
         </div>
         <h3 className="public-delivery__map-title">Zona de Cobertura y Domicilios</h3>

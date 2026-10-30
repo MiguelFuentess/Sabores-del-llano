@@ -32,8 +32,7 @@ export default function DemandPage() {
           <span>1. Producto</span>
           <select defaultValue="Hayacas" aria-label="Producto">
             <option>Hayacas</option>
-            <option>Tamales</option>
-            <option>Empanadas</option>
+            <option>Lechona</option>
           </select>
         </label>
         <label className="demand-field">
