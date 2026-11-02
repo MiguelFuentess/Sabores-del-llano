@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberCredentials, setRememberCredentials] = useState(false);
+  const [rememberAnimation, setRememberAnimation] = useState('');
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,7 +69,30 @@ export default function LoginPage() {
           </div>
 
           <div className="login-remember">
-            <input id="remember-me" name="remember-me" type="checkbox" disabled aria-describedby="remember-note" />
+            <style>{`
+              @keyframes remember-check-on { from { opacity: .45; } to { opacity: 1; } }
+              @keyframes remember-check-off { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+              .login-remember__checkbox { transition: accent-color 180ms ease; }
+              .login-remember__checkbox--on { animation: remember-check-on 180ms ease-out; }
+              .login-remember__checkbox--off { animation: remember-check-off 180ms ease-out; }
+              @media (prefers-reduced-motion: reduce) {
+                .login-remember__checkbox { transition: none; }
+                .login-remember__checkbox--on, .login-remember__checkbox--off { animation: none; }
+              }
+            `}</style>
+            <input
+              id="remember-me"
+              name="remember-me"
+              type="checkbox"
+              className={`login-remember__checkbox${rememberAnimation ? ` ${rememberAnimation}` : ''}`}
+              checked={rememberCredentials}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setRememberCredentials(checked);
+                setRememberAnimation(checked ? 'login-remember__checkbox--on' : 'login-remember__checkbox--off');
+              }}
+              aria-describedby="remember-note"
+            />
             <label htmlFor="remember-me">Recordar credenciales de acceso</label>
             <span className="login-tooltip" id="remember-note">No disponible en el acceso de demostración.</span>
           </div>
