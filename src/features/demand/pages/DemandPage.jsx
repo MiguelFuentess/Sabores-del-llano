@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import Button from '../../../components/ui/Button.jsx';
 import PageHeader from '../../../components/ui/PageHeader.jsx';
@@ -16,6 +17,8 @@ function DownloadIcon() {
 
 export default function DemandPage() {
   const { openMenu } = useOutletContext();
+  const [periodoHistorico, setPeriodoHistorico] = useState({ fechaDesde: '', fechaHasta: '' });
+  const rangoHistoricoInvalido = Boolean(periodoHistorico.fechaDesde && periodoHistorico.fechaHasta && periodoHistorico.fechaDesde > periodoHistorico.fechaHasta);
 
   return <div className="demand-page">
     <button className="orders-mobile-menu demand-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span /><span /><span /></button>
@@ -35,15 +38,20 @@ export default function DemandPage() {
             <option>Lechona</option>
           </select>
         </label>
-        <label className="demand-field">
+        <div className="demand-field">
           <span>2. Período histórico</span>
-          <select defaultValue="Últimos 3 meses" aria-label="Período histórico">
-            <option>Últimos 3 meses</option>
-            <option>Últimos 6 meses</option>
-            <option>Último año</option>
-          </select>
-          <small>Define qué registros históricos se tendrán en cuenta.</small>
-        </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+            <label style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 6, fontSize: 11, fontWeight: 500 }}>
+              <span>Desde</span>
+              <input className="demand-date-control" type="date" aria-label="Fecha desde" aria-invalid={rangoHistoricoInvalido} value={periodoHistorico.fechaDesde} onChange={(event) => setPeriodoHistorico((current) => ({ ...current, fechaDesde: event.target.value }))} style={{ width: '100%', minWidth: 0, minHeight: 43, padding: '9px 10px', border: `1px solid ${rangoHistoricoInvalido ? '#b94420' : '#ebdcd0'}`, borderRadius: 11, outline: 0, color: '#1e1c1a', background: '#fdf7f2', font: "500 12px 'Plus Jakarta Sans', sans-serif" }} />
+            </label>
+            <label style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 6, fontSize: 11, fontWeight: 500 }}>
+              <span>Hasta</span>
+              <input className="demand-date-control" type="date" aria-label="Fecha hasta" aria-invalid={rangoHistoricoInvalido} value={periodoHistorico.fechaHasta} onChange={(event) => setPeriodoHistorico((current) => ({ ...current, fechaHasta: event.target.value }))} style={{ width: '100%', minWidth: 0, minHeight: 43, padding: '9px 10px', border: `1px solid ${rangoHistoricoInvalido ? '#b94420' : '#ebdcd0'}`, borderRadius: 11, outline: 0, color: '#1e1c1a', background: '#fdf7f2', font: "500 12px 'Plus Jakarta Sans', sans-serif" }} />
+            </label>
+          </div>
+          {rangoHistoricoInvalido ? <small role="alert" style={{ color: '#a83224' }}>La fecha desde no puede ser posterior a la fecha hasta.</small> : <small>Define qué registros históricos se tendrán en cuenta.</small>}
+        </div>
         <label className="demand-field">
           <span>3. Horizonte de estimación</span>
           <select defaultValue="Próxima semana" aria-label="Horizonte de estimación">
@@ -54,7 +62,7 @@ export default function DemandPage() {
         </label>
       </div>
       <div className="demand-config__action">
-        <Button><SparklesIcon />Generar estimación</Button>
+        <Button disabled={rangoHistoricoInvalido}><SparklesIcon />Generar estimación</Button>
       </div>
     </section>
 

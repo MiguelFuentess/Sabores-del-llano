@@ -11,7 +11,7 @@ function localDate(offsetDays = 0) {
 }
 
 function freshOrderForm() {
-  return { customer: '', product: '', quantity: '', registeredDate: localDate(), deliveryDate: localDate(1), deliveryTime: '', deliveryMode: 'retiro', address: '', observations: '', status: 'Pendiente' };
+  return { customer: '', product: '', quantity: '', registeredDate: localDate(), deliveryDate: localDate(1), deliveryTime: '', deliveryMode: 'retiro', address: '', phone: '', observations: '', status: 'Pendiente' };
 }
 
 function IconClose() {
@@ -50,10 +50,9 @@ function LabeledField({ label, required = false, error, children }) {
   </div>;
 }
 
-export default function OrderFormModal({ order, customers, onClose, onSave }) {
+export default function OrderFormModal({ order, onClose, onSave }) {
   const isEdit = Boolean(order);
-  const [form, setForm] = useState(() => order ? { ...order, quantity: String(order.quantity) } : freshOrderForm());
-  const [addingClient, setAddingClient] = useState(false);
+  const [form, setForm] = useState(() => order ? { ...order, quantity: String(order.quantity), phone: order.phone ?? '' } : freshOrderForm());
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -71,7 +70,7 @@ export default function OrderFormModal({ order, customers, onClose, onSave }) {
 
   function handleSubmit(event) {
     event.preventDefault();
-    const nextErrors = validateOrderData(form, { isNew: !isEdit, addingClient });
+    const nextErrors = validateOrderData(form, { isNew: !isEdit, addingClient: true });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -91,17 +90,8 @@ export default function OrderFormModal({ order, customers, onClose, onSave }) {
         <button className="orders-modal__close" type="button" onClick={onClose} aria-label="Cerrar"><IconClose /></button>
       </header>
       <form className="order-form" onSubmit={handleSubmit} noValidate>
-        {!isEdit && <LabeledField label="Cliente" required error={!addingClient && !customers.length && errors.customer ? 'No hay clientes registrados. Registra uno nuevo.' : errors.customer}>
-          {!addingClient ? <>
-            <select className="order-control" value={form.customer} onChange={(event) => updateField('customer', event.target.value)}>
-              <option value="">Seleccionar cliente...</option>
-              {customers.map((customer) => <option value={customer} key={customer}>{customer}</option>)}
-            </select>
-            <button className="order-add-client" type="button" onClick={() => { setAddingClient(true); updateField('customer', ''); }}>+ Registrar nuevo cliente si no existe</button>
-          </> : <>
-            <input className="order-control" value={form.customer} onChange={(event) => updateField('customer', event.target.value)} placeholder="Nombre del nuevo cliente" autoComplete="name" />
-            <button className="order-add-client" type="button" onClick={() => { setAddingClient(false); updateField('customer', ''); }}>Seleccionar cliente existente</button>
-          </>}
+        {!isEdit && <LabeledField label="Cliente" required error={errors.customer}>
+          <input className="order-control" value={form.customer} onChange={(event) => updateField('customer', event.target.value)} placeholder="Nombre del cliente" autoComplete="off" />
         </LabeledField>}
 
         <div className="order-form-grid">
@@ -127,13 +117,21 @@ export default function OrderFormModal({ order, customers, onClose, onSave }) {
 
         <LabeledField label="Modalidad de entrega" required error={errors.deliveryMode}>
           <div className="order-delivery-toggle" role="group" aria-label="Modalidad de entrega">
-            {[['retiro', 'Retiro en local'], ['domicilio', 'Domicilio']].map(([value, label]) => <button key={value} type="button" className={form.deliveryMode === value ? 'order-delivery-toggle__option is-active' : 'order-delivery-toggle__option'} aria-pressed={form.deliveryMode === value} onClick={() => updateField('deliveryMode', value)}>{label}</button>)}
+            {[['retiro', 'Retiro en local'], ['domicilio', 'Domicilio']].map(([value, label]) => {
+              const isActive = form.deliveryMode === value;
+              return <button key={value} type="button" className={isActive ? 'order-delivery-toggle__option is-active' : 'order-delivery-toggle__option'} style={isActive ? { color: '#fff', background: '#2e5339' } : undefined} aria-pressed={isActive} onClick={() => updateField('deliveryMode', value)}>{label}</button>;
+            })}
           </div>
         </LabeledField>
 
-        {form.deliveryMode === 'domicilio' && <LabeledField label="Dirección de entrega" required error={errors.address}>
-          <input className="order-control" value={form.address} onChange={(event) => updateField('address', event.target.value)} placeholder="Dirección para el domicilio" autoComplete="street-address" />
-        </LabeledField>}
+        {form.deliveryMode === 'domicilio' && <div className="order-form-grid">
+          <LabeledField label="Dirección de entrega" required error={errors.address}>
+            <input className="order-control" value={form.address} onChange={(event) => updateField('address', event.target.value)} placeholder="Dirección para el domicilio" autoComplete="street-address" />
+          </LabeledField>
+          <LabeledField label="Número de teléfono">
+            <input className="order-control" type="tel" inputMode="tel" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="Ingrese el número de contacto" autoComplete="tel" />
+          </LabeledField>
+        </div>}
 
         {!isEdit && <LabeledField label="Observaciones" error={errors.observations}>
           <textarea className="order-control order-control--textarea" value={form.observations} onChange={(event) => updateField('observations', event.target.value)} placeholder="Indicaciones adicionales del pedido..." />

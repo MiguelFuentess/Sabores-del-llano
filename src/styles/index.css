@@ -614,3 +614,10 @@ a { color: inherit; }
 .orders-confirm-dialog .button--danger:hover { background: #a33321; }
 @media (max-width: 760px) { .orders-page .page-header h1 { font-size: 29px; } }
 .dashboard-orders__empty { padding: 28px 20px !important; color: #756f65 !important; text-align: center; }
+
+/* Uniformar únicamente los cinco títulos de página. */
+.dashboard-welcome h1,
+.orders-page .page-header h1,
+.production-page .page-header h1,
+.sales-page .page-header h1,
+.demand-page .page-header h1 { font-size: 40px; }
