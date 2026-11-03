@@ -21,6 +21,14 @@ export default function DemandPage() {
   const rangoHistoricoInvalido = Boolean(periodoHistorico.fechaDesde && periodoHistorico.fechaHasta && periodoHistorico.fechaDesde > periodoHistorico.fechaHasta);
 
   return <div className="demand-page">
+    <style>{`
+      .demand-fields > .demand-field:first-child > select,
+      .demand-fields > .demand-field:last-child > select { margin-top: 19px; }
+      @media (max-width: 900px) {
+        .demand-fields > .demand-field:first-child > select,
+        .demand-fields > .demand-field:last-child > select { margin-top: 0; }
+      }
+    `}</style>
     <button className="orders-mobile-menu demand-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span /><span /><span /></button>
     <PageHeader title="Predicción de demanda" description="Estima la demanda futura para apoyar la planificación de la producción." />
 

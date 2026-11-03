@@ -1,4 +1,19 @@
+import { useState } from 'react';
 import '../public.css';
+
+export function calculateLechonaEstimate(personCount) {
+  const requestedCount = Number(personCount);
+  const people = Number.isFinite(requestedCount) ? Math.min(150, Math.max(5, Math.round(requestedCount))) : 5;
+  let price;
+
+  if (people <= 25) price = 60000 + ((people - 5) / 20) * (320000 - 60000);
+  else if (people <= 50) price = 320000 + ((people - 25) / 25) * (520000 - 320000);
+  else price = 520000 + (people - 50) * 8000;
+
+  return Math.max(0, Math.round(price));
+}
+
+const formatCOP = (value) => `$${new Intl.NumberFormat('es-CO').format(value)} COP`;
 
 const assets = {
   emblem: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAVp0wQ9txKLXiOp8QmX-Yequc5L647xMa_4uyIbTLFEw54IahINA5IXhNj4prgSwd-VuaPaW22DT_zPG1FjSMy7o_LCn8UNeTuq5d4HmPqU_iNNDJZ7J4sfaGegfJ9BvHistIIRB_IXpLExr8r_MD-AxB0HJbxGlE49J2JzKybp_taXPpiXjDZrF58wkppiQfD9U4gDYFg1h3bFamJUSYeZaVeBQ5o9fJggpmEwJj7CHVJGY1oecHR',
@@ -54,6 +69,15 @@ function ProductCard({ kind, image, imageAlt, badge, rating, title, description,
 }
 
 export default function PublicHomePage() {
+  const [people, setPeople] = useState(25);
+  const estimatedPrice = calculateLechonaEstimate(people);
+  const sliderProgress = `${((people - 5) / (150 - 5)) * 100}%`;
+  const recommendation = people < 25
+    ? { title: 'Porciones individuales de lechona', detail: `${people} personas · referencia de $12.000 COP por plato` }
+    : people < 50
+      ? { title: 'Cojín Familiar', detail: `${people} personas · estimación basada en la referencia del cojín para 25 personas` }
+      : { title: 'Presentación para grupos grandes', detail: `${people} personas · precio estimado matemáticamente, pendiente de confirmación comercial` };
+
   return (
     <main className="public-site" id="inicio">
       <header className="public-header">
@@ -153,15 +177,21 @@ export default function PublicHomePage() {
             <span className="public-section-eyebrow">Planificador Inteligente</span>
             <h2>Calculadora para Eventos y Familias</h2>
             <p>¿Planeas un bautizo, cumpleaños dominical o reunión de empresa? Desliza para saber exactamente cuánto pedir.</p>
-            <div className="public-planner__label"><b>Número de Comensales:</b><strong>25</strong></div>
-            <div className="public-range"><span /><i /></div>
+            <div className="public-planner__label"><b>Número de Comensales:</b><strong>{people}</strong></div>
+            <div className="public-range">
+              <span style={{ width: sliderProgress }} />
+              <i style={{ left: sliderProgress }} />
+              <input className="public-range__input" type="range" min="5" max="150" step="1" value={people} onChange={(event) => setPeople(Number(event.target.value))} aria-label="Número de comensales" />
+            </div>
             <div className="public-range-marks"><span>5 Personas</span><span>50 Personas</span><span>100 Personas</span><span>150+ Personas</span></div>
-            <div className="public-planner__presets"><span>Reunión Íntima (10)</span><span>Cojín Estándar (25)</span><span>Fiesta Grande (50)</span><span>Empresarial (100)</span></div>
+            <div className="public-planner__presets">
+              {[[10, 'Reunión Íntima (10)'], [25, 'Cojín Estándar (25)'], [50, 'Fiesta Grande (50)'], [100, 'Empresarial (100)']].map(([count, label]) => <button key={count} type="button" aria-pressed={people === count} onClick={() => setPeople(count)}>{label}</button>)}
+            </div>
           </div>
           <aside className="public-recommendation">
             <h3>Recomendación Sugerida:</h3>
-            <div className="public-recommendation__item"><Icon>restaurant</Icon><div><b>1 Cojín Familiar (25 porciones)</b><small>Incluye arepas insulsas y ají campesino</small></div></div>
-            <div className="public-recommendation__item public-recommendation__cost"><Icon>payments</Icon><div><b>Presupuesto Estimado:</b><strong>$470.000 COP</strong></div></div>
+            <div className="public-recommendation__item"><Icon>restaurant</Icon><div><b>{recommendation.title}</b><small>{recommendation.detail}</small></div></div>
+            <div className="public-recommendation__item public-recommendation__cost"><Icon>payments</Icon><div><b>Presupuesto Estimado:</b><strong>{formatCOP(estimatedPrice)}</strong></div></div>
           </aside>
         </div>
       </section>
