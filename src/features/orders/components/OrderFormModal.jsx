@@ -79,6 +79,7 @@ export default function OrderFormModal({ order, onClose, onSave }) {
       customer: form.customer.trim(),
       quantity: Number(form.quantity),
       address: form.deliveryMode === 'domicilio' ? form.address.trim() : '',
+      phone: form.deliveryMode === 'domicilio' ? (form.phone || '').trim() : '',
       observations: form.observations.trim(),
     });
   }
@@ -128,7 +129,7 @@ export default function OrderFormModal({ order, onClose, onSave }) {
           <LabeledField label="Dirección de entrega" required error={errors.address}>
             <input className="order-control" value={form.address} onChange={(event) => updateField('address', event.target.value)} placeholder="Dirección para el domicilio" autoComplete="street-address" />
           </LabeledField>
-          <LabeledField label="Número de teléfono">
+          <LabeledField label="Número de teléfono" required error={errors.phone}>
             <input className="order-control" type="tel" inputMode="tel" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="Ingrese el número de contacto" autoComplete="tel" />
           </LabeledField>
         </div>}

@@ -9,13 +9,16 @@ import useProductionRecords from '../hooks/useProductionRecords.js';
 import useSales from '../../sales/hooks/useSales.js';
 import { filterSales } from '../../sales/utils/filterSales.js';
 import { filterProductionRecords, getProductionPeriodBounds } from '../utils/productionAnalytics.js';
+
 const shortDate = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 const fullDate = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const countFormat = new Intl.NumberFormat('es-CO');
 
 function dateAtNoon(value) { return new Date(`${value}T12:00:00Z`); }
 function formatDate(value, formatter = fullDate) { return formatter.format(dateAtNoon(value)); }
 
 function periodLabel(period) {
+  if (!period || period === 'all') return 'Todo el historial';
   const bounds = getProductionPeriodBounds(period);
   if (period === 'week') return `Esta semana (${formatDate(bounds.from, shortDate)} - ${formatDate(bounds.to, shortDate)})`;
   if (period === '15days') return 'Últimos 15 días';
@@ -56,9 +59,20 @@ function ProductionChart({ records, sales }) {
 function ProductionHistory({ records, sales }) {
   const productionByDateProduct = records.reduce((groups, record) => {
     const key = `${record.date}:${record.product}`;
-    groups[key] ??= { id: key, date: record.date, product: record.product, quantity: 0, leftovers: 0 };
+    groups[key] ??= {
+      id: key,
+      date: record.date,
+      product: record.product,
+      baseUnit: record.baseUnit ?? (record.product === 'hayacas' ? 'Unidad' : 'Plato'),
+      quantity: 0,
+      leftovers: 0,
+      soldQuantity: 0,
+      calculatedStock: 0,
+    };
     groups[key].quantity += record.quantity;
-    groups[key].leftovers += record.leftovers;
+    groups[key].leftovers = record.leftovers;
+    groups[key].soldQuantity = Math.max(groups[key].soldQuantity, record.soldQuantity ?? 0);
+    groups[key].calculatedStock = record.calculatedStock ?? Math.max(0, groups[key].quantity - groups[key].soldQuantity);
     return groups;
   }, {});
   const groupedProduction = Object.values(productionByDateProduct).sort((a, b) => b.date.localeCompare(a.date));
@@ -73,8 +87,9 @@ function ProductionHistory({ records, sales }) {
       <thead><tr><th scope="col">Fecha y producto</th><th scope="col">Cant. producida</th><th scope="col">Cant. vendida</th><th scope="col">Sobrantes / merma</th><th scope="col">Rendimiento / estado</th></tr></thead>
       <tbody>{groupedProduction.length ? groupedProduction.map((record) => {
         const productLabel = PRODUCTION_PRODUCTS.find(({ value }) => value === record.product)?.label ?? 'Producto';
-        const dateSales = salesByDateProduct[`${record.date}:${record.product}`] ?? 0;
-        return <tr key={record.id}><td><strong>{productLabel}</strong><small>{formatDate(record.date)}</small></td><td>{record.quantity} uds</td><td title="Ventas registradas en esa fecha; pueden incluir existencias anteriores">{dateSales} uds<small className="production-unavailable">Fecha de venta, no lote</small></td><td>{record.leftovers} uds</td><td className="production-unavailable">Sin lote asignado</td></tr>;
+        const dateSales = salesByDateProduct[`${record.date}:${record.product}`] ?? record.soldQuantity ?? 0;
+        const efficiencyPct = record.quantity ? `${((dateSales / record.quantity) * 100).toFixed(1)}% vendido` : 'Sin lote asignado';
+        return <tr key={record.id}><td><strong>{productLabel}</strong><small>{formatDate(record.date)}</small></td><td>{countFormat.format(record.quantity)} uds</td><td title="Ventas registradas en esa fecha; pueden incluir existencias anteriores">{countFormat.format(dateSales)} uds<small className="production-unavailable">Fecha de venta, no lote</small></td><td>{countFormat.format(record.leftovers)} uds</td><td className="production-unavailable">{efficiencyPct}</td></tr>;
       }) : <tr><td className="production-table__empty" colSpan="5">No hay registros de producción para los filtros seleccionados.</td></tr>}</tbody>
     </table></div>
   </section>;
@@ -84,7 +99,7 @@ export default function ProductionPage() {
   const { openMenu } = useOutletContext();
   const { records, error, create } = useProductionRecords();
   const { sales } = useSales();
-  const [period, setPeriod] = useState('week');
+  const [period, setPeriod] = useState('all');
   const [product, setProduct] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [toast, setToast] = useState(null);
@@ -93,12 +108,22 @@ export default function ProductionPage() {
 
   const filtered = useMemo(() => filterProductionRecords(records, { period, product }), [records, period, product]);
   const filteredSales = useMemo(() => filterSales(sales, { period, product }), [sales, period, product]);
-  const totals = useMemo(() => filtered.reduce((sum, record) => {
-    sum.produced += record.quantity;
-    sum.producedByProduct[record.product] = (sum.producedByProduct[record.product] ?? 0) + record.quantity;
-    sum.leftovers[record.product] = (sum.leftovers[record.product] ?? 0) + record.leftovers;
-    return sum;
-  }, { produced: 0, producedByProduct: { lechona: 0, hayacas: 0 }, leftovers: { lechona: 0, hayacas: 0 } }), [filtered]);
+  const totals = useMemo(() => {
+    const byDateProductLeftovers = {};
+    const acc = filtered.reduce((sum, record) => {
+      sum.produced += record.quantity;
+      sum.producedByProduct[record.product] = (sum.producedByProduct[record.product] ?? 0) + record.quantity;
+      byDateProductLeftovers[`${record.date}:${record.product}`] = {
+        product: record.product,
+        leftovers: record.leftovers,
+      };
+      return sum;
+    }, { produced: 0, producedByProduct: { lechona: 0, hayacas: 0 }, leftovers: { lechona: 0, hayacas: 0 } });
+    Object.values(byDateProductLeftovers).forEach(({ product: prodKey, leftovers }) => {
+      acc.leftovers[prodKey] = (acc.leftovers[prodKey] ?? 0) + leftovers;
+    });
+    return acc;
+  }, [filtered]);
   const sold = filteredSales.reduce((total, sale) => total + sale.quantity, 0);
   const salesEfficiency = totals.produced ? `${((sold / totals.produced) * 100).toFixed(1)}%` : '—';
 
@@ -108,9 +133,9 @@ export default function ProductionPage() {
     toastTimer.current = window.setTimeout(() => setToast(null), 3500);
   }
 
-  function saveProduction(data) {
+  async function saveProduction(data) {
     try {
-      create(data);
+      await create(data);
       setIsCreating(false);
       announce('La producción se registró correctamente.');
     } catch (saveError) {
@@ -123,14 +148,14 @@ export default function ProductionPage() {
     <PageHeader title="Producción y Análisis" description="Balance de unidades producidas vs. vendidas y análisis de rendimiento para toma de decisiones artesanales." actions={<><Button variant="quiet" className="production-report-button" aria-disabled="true" title="Exportación disponible en una etapa posterior"><DownloadIcon />Descargar reporte</Button><Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar producción</Button></>} />
 
     <section className="production-metrics" aria-label="Indicadores de producción">
-      <StatCard label="Total producido (período)" value={`${totals.produced} uds`} detail={<><span className="production-product-total production-product-total--hayacas">{totals.producedByProduct.hayacas} Hayacas</span><span className="production-product-total production-product-total--lechona">{totals.producedByProduct.lechona} Lechona</span></>} />
-      <StatCard label="Total vendido" value={`${sold} uds`} detail="Según el registro compartido de Ventas" />
-      <StatCard label="Unidades sobrantes" value={`${totals.leftovers.lechona} · ${totals.leftovers.hayacas}`} detail="Lechona · Hayacas" />
+      <StatCard label="Total producido (período)" value={`${countFormat.format(totals.produced)} uds`} detail={<><span className="production-product-total production-product-total--hayacas">{countFormat.format(totals.producedByProduct.hayacas)} Hayacas</span><span className="production-product-total production-product-total--lechona">{countFormat.format(totals.producedByProduct.lechona)} Lechona</span></>} />
+      <StatCard label="Total vendido" value={`${countFormat.format(sold)} uds`} detail="Según el registro compartido de Ventas" />
+      <StatCard label="Unidades sobrantes" value={`${countFormat.format(totals.leftovers.lechona)} · ${countFormat.format(totals.leftovers.hayacas)}`} detail="Lechona · Hayacas" />
       <StatCard label="Eficiencia de producción" value={salesEfficiency} detail={totals.produced ? 'Ventas del período / producción del período' : 'Sin producción registrada en el período'} />
     </section>
 
     <div className="production-filters" aria-label="Filtros de producción">
-      <div className="production-periods"><span>PERÍODO:</span>{[['week', periodLabel('week')], ['15days', 'Últimos 15 días'], ['month', periodLabel('month')]].map(([key, label]) => <button key={key} type="button" className={period === key ? 'is-active' : ''} aria-pressed={period === key} onClick={() => setPeriod(key)}>{label}</button>)}</div>
+      <div className="production-periods"><span>PERÍODO:</span>{[['all', 'Todo el historial'], ['week', periodLabel('week')], ['15days', 'Últimos 15 días'], ['month', periodLabel('month')]].map(([key, label]) => <button key={key} type="button" className={period === key ? 'is-active' : ''} aria-pressed={period === key} onClick={() => setPeriod(key)}>{label}</button>)}</div>
       <label className="production-product-filter"><span className="sr-only">Filtrar productos</span><select value={product} onChange={(event) => setProduct(event.target.value)}><option value="">Filtrar: Todos los productos</option>{PRODUCTION_PRODUCTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label>
     </div>
 
@@ -141,4 +166,3 @@ export default function ProductionPage() {
     {toast && <div className={`orders-toast${toast.kind === 'error' ? ' orders-toast--error' : ''}`} role="status" aria-live="polite">{toast.message}</div>}
   </div>;
 }
-

@@ -13,7 +13,7 @@ export default function OrdersFilters({ search, onSearch, status, onStatus, prod
     </div>
     <div className="orders-filter-divider" />
     <div className="orders-filter-row">
-      <label className="orders-filter-select"><span className="sr-only">Filtrar por estado</span><select value={status} onChange={(event) => onStatus(event.target.value)}><option value="">Todos los estados</option><option>Pendiente</option><option>Confirmado</option><option>En preparación</option><option>Entregado</option></select></label>
+      <label className="orders-filter-select"><span className="sr-only">Filtrar por estado</span><select value={status} onChange={(event) => onStatus(event.target.value)}><option value="">Todos los estados</option><option>Pendiente</option><option>Confirmado</option><option>En preparación</option><option>Entregado</option><option>Cancelado</option></select></label>
       <label className="orders-filter-select"><span className="sr-only">Filtrar por producto</span><select value={product} onChange={(event) => onProduct(event.target.value)}><option value="">Todos los productos</option><option value="hayacas">Hayacas</option><option value="lechona">Lechona</option></select></label>
       <label className={`orders-filter-date${date ? ' has-value' : ''}`}><span>Fecha</span><input type="date" value={date} onChange={(event) => onDate(event.target.value)} aria-label="Filtrar por fecha de entrega" /></label>
       {hasFilters && <button className="orders-filter-clear" type="button" onClick={onClear}>Limpiar filtros</button>}

@@ -14,6 +14,7 @@ from app.core.security import (
 from app.db.session import get_db, get_engine
 from app.main import app
 from app.models import Usuario
+from app.services.auth import initialize_admin_from_env
 
 TEST_SECRET_KEY = "test-only-secret-key-for-jwt-signing-at-least-32-chars"
 
@@ -249,3 +250,72 @@ def test_auth_config_validates_secret_length(monkeypatch):
     monkeypatch.setenv("AUTH_SECRET_KEY", "clave-demasiado-corta")
     with pytest.raises(ValueError, match="at least 32 characters"):
         get_settings()
+
+
+def test_initialize_admin_from_env_creates_admin_is_idempotent_and_allows_login(
+    auth_client, auth_session, monkeypatch
+):
+    monkeypatch.setenv("ADMIN_INITIAL_USERNAME", "martha.inicial")
+    monkeypatch.setenv("ADMIN_INITIAL_PASSWORD", "ClaveAdminInicial#2026")
+    monkeypatch.setenv("ADMIN_INITIAL_FULL_NAME", "Doña Martha Administradora")
+
+    # 1. Primera ejecución: crea el usuario administrador con hash seguro
+    result_1 = initialize_admin_from_env(auth_session, commit=True)
+    assert result_1.creado is True
+    assert result_1.usuario.nombre_usuario == "martha.inicial"
+    assert result_1.usuario.nombre_completo == "Doña Martha Administradora"
+    assert result_1.usuario.activo is True
+    assert not hasattr(result_1.usuario, "password_hash")
+
+    # Verificar que en BD se almacenó hash PBKDF2 y nunca texto plano
+    db_user = auth_session.get(Usuario, result_1.usuario.id)
+    assert db_user is not None
+    assert db_user.password_hash.startswith("pbkdf2_sha256$310000$")
+    assert "ClaveAdminInicial#2026" not in db_user.password_hash
+
+    # 2. Segunda ejecución con otra contraseña en el entorno: NO duplica ni sobrescribe la contraseña existente
+    monkeypatch.setenv("ADMIN_INITIAL_PASSWORD", "OtraContrasenaDistinta#9999")
+    result_2 = initialize_admin_from_env(auth_session, commit=True)
+    assert result_2.creado is False
+    assert result_2.usuario.id == result_1.usuario.id
+
+    # 3. Iniciar sesión con la contraseña original funciona; la segunda contraseña no sobrescribió nada
+    login_ok = auth_client.post(
+        "/auth/login",
+        json={
+            "nombre_usuario": "martha.inicial",
+            "password": "ClaveAdminInicial#2026",
+        },
+    )
+    assert login_ok.status_code == 200
+    token = login_ok.json()["access_token"]
+
+    me_ok = auth_client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me_ok.status_code == 200
+    assert me_ok.json()["nombre_usuario"] == "martha.inicial"
+
+    login_overwritten = auth_client.post(
+        "/auth/login",
+        json={
+            "nombre_usuario": "martha.inicial",
+            "password": "OtraContrasenaDistinta#9999",
+        },
+    )
+    assert login_overwritten.status_code == 401
+
+
+def test_initialize_admin_validates_missing_or_short_credentials(
+    auth_session, monkeypatch
+):
+    monkeypatch.delenv("ADMIN_INITIAL_USERNAME", raising=False)
+    monkeypatch.delenv("ADMIN_INITIAL_PASSWORD", raising=False)
+    with pytest.raises(ValueError, match="ADMIN_INITIAL_USERNAME"):
+        initialize_admin_from_env(auth_session, commit=False)
+
+    monkeypatch.setenv("ADMIN_INITIAL_USERNAME", "admin.corto")
+    monkeypatch.setenv("ADMIN_INITIAL_PASSWORD", "1234567")
+    with pytest.raises(ValueError, match="al menos 8 caracteres"):
+        initialize_admin_from_env(auth_session, commit=False)
+

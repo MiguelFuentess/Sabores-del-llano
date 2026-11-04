@@ -40,8 +40,19 @@ function SaleTable({ sales, hasAnySales, onCreate, onEdit, onDelete }) {
 function SalesPagination({ page, pageCount, resultCount, totalCount, onPage }) {
   const start = resultCount ? (page - 1) * SALES_PAGE_SIZE + 1 : 0;
   const end = Math.min(page * SALES_PAGE_SIZE, resultCount);
+  const maxVisiblePages = 7;
+  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(pageCount, startPage + maxVisiblePages - 1);
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  const visiblePageNumbers = Array.from(
+    { length: endPage - startPage + 1 },
+    (_, index) => startPage + index
+  );
+
   return <footer className="sales-pagination"><p>Mostrando <strong>{start}–{end}</strong> de <strong>{resultCount}</strong> ventas filtradas <span>({totalCount} en total)</span></p>
-    {pageCount > 1 && <nav aria-label="Paginación de ventas"><button type="button" aria-label="Página anterior" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>{Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => <button key={number} type="button" className={number === page ? 'is-active' : ''} aria-current={number === page ? 'page' : undefined} onClick={() => onPage(number)}>{number}</button>)}<button type="button" aria-label="Página siguiente" disabled={page === pageCount} onClick={() => onPage(page + 1)}>›</button></nav>}
+    {pageCount > 1 && <nav aria-label="Paginación de ventas"><button type="button" aria-label="Página anterior" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>{visiblePageNumbers.map((number) => <button key={number} type="button" className={number === page ? 'is-active' : ''} aria-current={number === page ? 'page' : undefined} onClick={() => onPage(number)}>{number}</button>)}<button type="button" aria-label="Página siguiente" disabled={page === pageCount} onClick={() => onPage(page + 1)}>›</button></nav>}
   </footer>;
 }
 
@@ -54,7 +65,7 @@ export default function SalesPage() {
   const { openMenu } = useOutletContext();
   const { sales, error: storageError, create, update, remove } = useSales();
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('week');
+  const [period, setPeriod] = useState('all');
   const [product, setProduct] = useState('');
   const [page, setPage] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
@@ -67,7 +78,7 @@ export default function SalesPage() {
 
   const visibleSales = useMemo(() => filterSales(sales, { search, period, product }), [sales, search, period, product]);
   const summary = useMemo(() => summarizeSales(visibleSales), [visibleSales]);
-  const todayTotal = useMemo(() => visibleSales.filter((sale) => sale.date === currentDate()).reduce((total, sale) => total + sale.total, 0), [visibleSales]);
+  const todayTotal = useMemo(() => sales.filter((sale) => sale.date === currentDate()).reduce((total, sale) => total + sale.total, 0), [sales]);
   const pageCount = Math.max(1, Math.ceil(visibleSales.length / SALES_PAGE_SIZE));
   const pageSales = visibleSales.slice((page - 1) * SALES_PAGE_SIZE, page * SALES_PAGE_SIZE);
   useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
@@ -78,14 +89,14 @@ export default function SalesPage() {
     toastTimer.current = window.setTimeout(() => setToast(null), 3500);
   }
 
-  function saveSale(data) {
+  async function saveSale(data) {
     try {
       if (editingSale) {
-        update(editingSale.id, data);
+        await update(editingSale.id, data);
         setEditingSale(null);
         announce('La venta se actualizó correctamente.');
       } else {
-        create(data);
+        await create(data);
         setIsCreating(false);
         setPage(1);
         announce('La venta se registró correctamente.');
@@ -95,9 +106,9 @@ export default function SalesPage() {
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     try {
-      remove(deletingSale.id);
+      await remove(deletingSale.id);
       announce(`Se eliminó la venta #${String(deletingSale.receiptNumber).padStart(3, '0')}.`);
       setDeletingSale(null);
     } catch (deleteError) {
@@ -126,4 +137,3 @@ export default function SalesPage() {
     {toast && <div className={`orders-toast${toast.kind === 'error' ? ' orders-toast--error' : ''}`} role="status" aria-live="polite">{toast.message}</div>}
   </div>;
 }
-

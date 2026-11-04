@@ -41,3 +41,9 @@ class TokenResponse(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     expires_in: int
     usuario: UsuarioPublicResponse
+
+
+class AdminInitResult(BaseModel):
+    creado: bool
+    usuario: UsuarioPublicResponse
+    mensaje: str

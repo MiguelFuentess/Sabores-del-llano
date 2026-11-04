@@ -5,6 +5,7 @@ const DAY = 24 * 60 * 60 * 1000;
 function dateOnly(date) { return date.toISOString().slice(0, 10); }
 
 export function getSalesPeriodBounds(period, today = new Date()) {
+  if (!period || period === 'all') return null;
   const end = dateOnly(today);
   if (period === '15days') return { from: dateOnly(new Date(today.getTime() - 14 * DAY)), to: end };
   if (period === 'month') return { from: `${end.slice(0, 7)}-01`, to: end };
@@ -12,7 +13,7 @@ export function getSalesPeriodBounds(period, today = new Date()) {
   return { from: dateOnly(new Date(today.getTime() - weekday * DAY)), to: dateOnly(new Date(today.getTime() + (6 - weekday) * DAY)) };
 }
 
-export function filterSales(sales, { search = '', period = 'week', product = '', today = new Date() } = {}) {
+export function filterSales(sales, { search = '', period = 'all', product = '', today = new Date() } = {}) {
   const bounds = getSalesPeriodBounds(period, today);
   const term = search.trim().toLocaleLowerCase('es');
   return sales.filter((sale) => {
@@ -23,10 +24,11 @@ export function filterSales(sales, { search = '', period = 'week', product = '',
       sale.date,
       new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${sale.date}T12:00:00Z`)),
     ].filter(Boolean).some((value) => String(value).toLocaleLowerCase('es').includes(term));
-    return sale.date >= bounds.from && sale.date <= bounds.to
+    const matchesPeriod = !bounds || (sale.date >= bounds.from && sale.date <= bounds.to);
+    return matchesPeriod
       && (!product || sale.product === product)
       && (!term || searchable);
-  }).sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time) || b.receiptNumber - a.receiptNumber);
+  }).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.time ?? '').localeCompare(a.time ?? '') || Number(b.receiptNumber) - Number(a.receiptNumber));
 }
 
 export function summarizeSales(sales) {
@@ -53,8 +55,7 @@ export function formatSaleDate(value) {
 }
 
 export function formatSaleTime(value) {
-  if (!value) return '';
+  if (!value) return 'Jornada completa';
   const [hour, minute] = value.split(':').map(Number);
   return new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 1, hour, minute)));
 }
-

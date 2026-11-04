@@ -10,7 +10,16 @@ from app.core.config import get_settings
 
 @lru_cache(maxsize=4)
 def _engine_for(database_url: str) -> Engine:
-    return create_engine(database_url, pool_pre_ping=True)
+    connect_args = (
+        {"connect_timeout": 5, "read_timeout": 15, "write_timeout": 15}
+        if database_url.startswith("mysql")
+        else {}
+    )
+    return create_engine(
+        database_url,
+        pool_pre_ping=True,
+        connect_args=connect_args,
+    )
 
 
 def get_engine() -> Engine:

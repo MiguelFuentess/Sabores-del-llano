@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { clearDemoAccess } from '../../features/auth/demoAccess.js';
+import { clearAuthSession } from '../../features/auth/services/authService.js';
 
 const links = [
   { to: '/app/dashboard', label: 'Panel de Control', icon: 'dashboard' },
@@ -26,7 +26,7 @@ export default function Sidebar({ open, onNavigate }) {
 
   function handleLogout(event) {
     event.preventDefault();
-    clearDemoAccess();
+    clearAuthSession();
     onNavigate();
     navigate('/login', { replace: true });
   }

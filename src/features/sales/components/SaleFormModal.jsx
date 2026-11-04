@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Button from '../../../components/ui/Button.jsx';
-import { SALE_PRODUCTS } from '../data/salesOptions.js';
+import { getDefaultUnitPrice, SALE_PRODUCTS } from '../data/salesOptions.js';
 import { calculateSaleTotal } from '../utils/saleCalculations.js';
 import { formatCOP } from '../utils/filterSales.js';
 import { validateSale } from '../utils/validateSale.js';
@@ -14,11 +14,12 @@ function CloseIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path 
 
 export default function SaleFormModal({ sale, onClose, onSave }) {
   const isEdit = Boolean(sale);
+  const initialProduct = sale?.product ?? 'lechona';
   const [form, setForm] = useState(() => ({
-    dateTime: sale ? `${sale.date}T${sale.time}` : localDateTime(),
-    product: sale?.product ?? 'lechona',
+    dateTime: sale ? `${sale.date}T${sale.time || '12:00'}` : localDateTime(),
+    product: initialProduct,
     quantity: sale ? String(sale.quantity) : '',
-    unitPrice: sale ? String(sale.unitPrice) : '',
+    unitPrice: sale ? String(sale.unitPrice) : String(getDefaultUnitPrice(initialProduct)),
   }));
   const [errors, setErrors] = useState({});
   const [date = '', time = ''] = form.dateTime.split('T');
@@ -31,7 +32,21 @@ export default function SaleFormModal({ sale, onClose, onSave }) {
   }, [onClose]);
 
   function change(name, value) {
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => {
+      if (name === 'product') {
+        const previousDefault = String(getDefaultUnitPrice(current.product));
+        const shouldUpdatePrice =
+          !current.unitPrice || current.unitPrice === previousDefault;
+        return {
+          ...current,
+          product: value,
+          unitPrice: shouldUpdatePrice
+            ? String(getDefaultUnitPrice(value))
+            : current.unitPrice,
+        };
+      }
+      return { ...current, [name]: value };
+    });
     setErrors((current) => ({ ...current, [name === 'dateTime' ? 'date' : name]: '' }));
   }
 
@@ -59,7 +74,7 @@ export default function SaleFormModal({ sale, onClose, onSave }) {
         <div className="sales-field">
           <span className="sales-field__label" id="sale-product-label">Producto <span>*</span></span>
           <div className="sales-product-toggle" role="group" aria-labelledby="sale-product-label">
-            {SALE_PRODUCTS.map(({ value, shortLabel }) => <button key={value} type="button" className={form.product === value ? 'is-active' : ''} aria-pressed={form.product === value} onClick={() => change('product', value)}>{value === 'hayacas' ? 'Hayaca' : 'Lechona'}</button>)}
+            {SALE_PRODUCTS.map(({ value }) => <button key={value} type="button" className={form.product === value ? 'is-active' : ''} aria-pressed={form.product === value} onClick={() => change('product', value)}>{value === 'hayacas' ? 'Hayaca' : 'Lechona'}</button>)}
           </div>
           {errors.product && <p className="sales-field__error" role="alert">{errors.product}</p>}
         </div>
@@ -84,4 +99,3 @@ export default function SaleFormModal({ sale, onClose, onSave }) {
     </section>
   </div>;
 }
-

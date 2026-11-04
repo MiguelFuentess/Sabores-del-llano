@@ -31,7 +31,6 @@ export default function OrdersPage() {
 
   const visibleOrders = useMemo(() => filterOrders(orders, { search, status, product, date }), [orders, search, status, product, date]);
 
-  const customers = useMemo(() => [...new Set(orders.map((order) => order.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')), [orders]);
   const pendingCount = orders.filter((order) => order.status === 'Pendiente').length;
   const deliveredCount = orders.filter((order) => order.status === 'Entregado').length;
   const hasFilters = Boolean(search.trim() || status || product || date);
@@ -42,14 +41,14 @@ export default function OrdersPage() {
     toastTimer.current = window.setTimeout(() => setToast(null), 3500);
   }
 
-  function handleSave(data) {
+  async function handleSave(data) {
     try {
       if (editingOrder) {
-        update(editingOrder.id, data);
+        await update(editingOrder.id, data);
         setEditingOrder(null);
         announce('El pedido se actualizó correctamente.');
       } else {
-        create(data);
+        await create(data);
         setIsCreating(false);
         announce('El pedido se registró correctamente.');
       }
@@ -58,9 +57,9 @@ export default function OrdersPage() {
     }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     try {
-      remove(deletingOrder.id);
+      await remove(deletingOrder.id);
       announce(`Se eliminó el pedido #${deletingOrder.orderNumber}.`);
       setDeletingOrder(null);
     } catch (deleteError) {
@@ -90,8 +89,8 @@ export default function OrdersPage() {
     {storageError && <p className="orders-storage-error" role="alert">{storageError}</p>}
     <OrdersList orders={visibleOrders} hasFilters={hasFilters} onEdit={setEditingOrder} onDelete={setDeletingOrder} onCreate={() => setIsCreating(true)} />
 
-    {isCreating && <OrderFormModal customers={customers} onClose={() => setIsCreating(false)} onSave={handleSave} />}
-    {editingOrder && <OrderFormModal order={editingOrder} customers={customers} onClose={() => setEditingOrder(null)} onSave={handleSave} />}
+    {isCreating && <OrderFormModal onClose={() => setIsCreating(false)} onSave={handleSave} />}
+    {editingOrder && <OrderFormModal order={editingOrder} onClose={() => setEditingOrder(null)} onSave={handleSave} />}
     {deletingOrder && <DeleteOrderDialog order={deletingOrder} onCancel={() => setDeletingOrder(null)} onConfirm={handleDelete} />}
     {toast && <div className={`orders-toast orders-toast--${toast.kind}`} role="status" aria-live="polite">{toast.message}</div>}
   </div>;

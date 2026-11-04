@@ -17,7 +17,10 @@ export function validateOrderData(data, { isNew = false, addingClient = false } 
   else if (isRealDate(data.registeredDate) && data.deliveryDate < data.registeredDate) errors.deliveryDate = 'La fecha de entrega no puede ser anterior a la fecha de registro.';
   if (data.deliveryTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(data.deliveryTime)) errors.deliveryTime = 'Ingresa una hora válida.';
   if (!['retiro', 'domicilio'].includes(data.deliveryMode)) errors.deliveryMode = 'Selecciona una modalidad de entrega.';
-  if (data.deliveryMode === 'domicilio' && !(data.address || '').trim()) errors.address = 'Ingresa la dirección para el domicilio.';
+  if (data.deliveryMode === 'domicilio') {
+    if (!(data.address || '').trim()) errors.address = 'Ingresa la dirección para el domicilio.';
+    if (!(data.phone || '').trim()) errors.phone = 'Ingresa el teléfono de contacto para el domicilio.';
+  }
   if (!ORDER_STATUSES.includes(data.status)) errors.status = 'Selecciona un estado válido.';
   return errors;
 }

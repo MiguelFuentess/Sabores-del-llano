@@ -60,3 +60,22 @@ def test_cors_rejects_wildcard_origins(monkeypatch):
 
     with pytest.raises(ValueError, match=r"explicit HTTP\(S\) origins"):
         get_settings()
+
+
+def test_cors_preflight_allows_configured_and_local_dev_origins(client):
+    for origin in (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+    ):
+        resp = client.options(
+            "/auth/login",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Content-Type,Authorization",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") == origin
+

@@ -11,9 +11,18 @@ export function validateProductionRecord(form) {
   if (!isRealDate(form.date)) errors.date = 'Ingresa una fecha válida.';
   if (!PRODUCTION_PRODUCTS.some(({ value }) => value === form.product)) errors.product = 'Selecciona hayacas o lechona.';
   if (!/^\d+$/.test(String(form.quantity).trim()) || Number(form.quantity) < 1) errors.quantity = 'Ingresa una cantidad entera mayor que cero.';
-  if (form.leftovers !== '' && (!/^\d+$/.test(String(form.leftovers).trim()) || Number(form.leftovers) < 0)) {
+  if (form.leftovers !== '' && form.leftovers !== undefined && form.leftovers !== null && (!/^\d+$/.test(String(form.leftovers).trim()) || Number(form.leftovers) < 0)) {
     errors.leftovers = 'Ingresa cero o una cantidad entera positiva.';
+  }
+  if (
+    !errors.quantity &&
+    !errors.leftovers &&
+    form.leftovers !== '' &&
+    form.leftovers !== undefined &&
+    form.leftovers !== null &&
+    Number(form.leftovers) > Number(form.quantity)
+  ) {
+    errors.leftovers = 'Los sobrantes no pueden superar la cantidad producida.';
   }
   return errors;
 }
-

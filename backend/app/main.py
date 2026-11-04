@@ -6,7 +6,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.catalog import router as catalog_router
+from app.api.routes.customers import router as customers_router
 from app.api.routes.health import router as health_router
+from app.api.routes.orders import router as orders_router
+from app.api.routes.production import router as production_router
+from app.api.routes.sales import router as sales_router
 from app.core.config import get_settings
 
 
@@ -21,6 +25,11 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.frontend_origins),
+    allow_origin_regex=(
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        if settings.environment == "development"
+        else None
+    ),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -28,6 +37,10 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(catalog_router)
+app.include_router(customers_router)
+app.include_router(orders_router)
+app.include_router(production_router)
+app.include_router(sales_router)
 
 
 @app.exception_handler(Exception)
