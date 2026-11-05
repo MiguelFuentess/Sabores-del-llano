@@ -178,6 +178,7 @@ export async function createOrder(data) {
     method: 'POST',
     body: payload,
   });
+  window.dispatchEvent(new Event('sabores-del-llano:orders-changed'));
   return mapApiOrderToUiOrder(created);
 }
 
@@ -221,6 +222,7 @@ export async function updateOrder(id, changes) {
     method: 'PATCH',
     body: payload,
   });
+  window.dispatchEvent(new Event('sabores-del-llano:orders-changed'));
   return mapApiOrderToUiOrder(updated);
 }
 
@@ -228,5 +230,6 @@ export async function deleteOrder(id) {
   await apiRequest(`/pedidos/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
+  window.dispatchEvent(new Event('sabores-del-llano:orders-changed'));
   return id;
 }

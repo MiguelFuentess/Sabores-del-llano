@@ -10,8 +10,65 @@ import OrderFormModal from '../components/OrderFormModal.jsx';
 import OrdersFilters from '../components/OrdersFilters.jsx';
 import OrdersList from '../components/OrdersList.jsx';
 
+export const ORDERS_PAGE_SIZE = 15;
+
 function PlusIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg>;
+}
+
+export function OrdersPagination({ page, pageCount, resultCount, totalCount, onPage }) {
+  const start = resultCount ? (page - 1) * ORDERS_PAGE_SIZE + 1 : 0;
+  const end = Math.min(page * ORDERS_PAGE_SIZE, resultCount);
+  const maxVisiblePages = 7;
+  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(pageCount, startPage + maxVisiblePages - 1);
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  const visiblePageNumbers = Array.from(
+    { length: endPage - startPage + 1 },
+    (_, index) => startPage + index
+  );
+
+  return (
+    <footer className="orders-pagination sales-pagination" style={{ maxWidth: '980px' }}>
+      <p>
+        Mostrando <strong>{start}–{end}</strong> de <strong>{resultCount}</strong> pedidos filtrados{' '}
+        <span>({totalCount} en total · Página {page} de {pageCount})</span>
+      </p>
+      {pageCount > 1 && (
+        <nav aria-label="Paginación de pedidos">
+          <button
+            type="button"
+            aria-label="Página anterior"
+            disabled={page === 1}
+            onClick={() => onPage(page - 1)}
+          >
+            ‹
+          </button>
+          {visiblePageNumbers.map((number) => (
+            <button
+              key={number}
+              type="button"
+              className={number === page ? 'is-active' : ''}
+              aria-current={number === page ? 'page' : undefined}
+              onClick={() => onPage(number)}
+            >
+              {number}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-label="Página siguiente"
+            disabled={page === pageCount}
+            onClick={() => onPage(page + 1)}
+          >
+            ›
+          </button>
+        </nav>
+      )}
+    </footer>
+  );
 }
 
 export default function OrdersPage() {
@@ -21,6 +78,7 @@ export default function OrdersPage() {
   const [status, setStatus] = useState('');
   const [product, setProduct] = useState('');
   const [date, setDate] = useState('');
+  const [page, setPage] = useState(1);
   const [editingOrder, setEditingOrder] = useState(null);
   const [deletingOrder, setDeletingOrder] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -28,8 +86,21 @@ export default function OrdersPage() {
   const toastTimer = useRef(null);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+  useEffect(() => setPage(1), [search, status, product, date]);
 
-  const visibleOrders = useMemo(() => filterOrders(orders, { search, status, product, date }), [orders, search, status, product, date]);
+  const visibleOrders = useMemo(
+    () => filterOrders(orders, { search, status, product, date }),
+    [orders, search, status, product, date]
+  );
+  const pageCount = Math.max(1, Math.ceil(visibleOrders.length / ORDERS_PAGE_SIZE));
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const pageOrders = useMemo(() => {
+    const start = (page - 1) * ORDERS_PAGE_SIZE;
+    return visibleOrders.slice(start, start + ORDERS_PAGE_SIZE);
+  }, [visibleOrders, page]);
 
   const pendingCount = orders.filter((order) => order.status === 'Pendiente').length;
   const deliveredCount = orders.filter((order) => order.status === 'Entregado').length;
@@ -50,6 +121,7 @@ export default function OrdersPage() {
       } else {
         await create(data);
         setIsCreating(false);
+        setPage(1);
         announce('El pedido se registró correctamente.');
       }
     } catch (saveError) {
@@ -72,6 +144,7 @@ export default function OrdersPage() {
     setStatus('');
     setProduct('');
     setDate('');
+    setPage(1);
   }
 
   return <div className="orders-page">
@@ -87,7 +160,22 @@ export default function OrdersPage() {
     <OrdersFilters search={search} onSearch={setSearch} status={status} onStatus={setStatus} product={product} onProduct={setProduct} date={date} onDate={setDate} onClear={clearFilters} />
 
     {storageError && <p className="orders-storage-error" role="alert">{storageError}</p>}
-    <OrdersList orders={visibleOrders} hasFilters={hasFilters} onEdit={setEditingOrder} onDelete={setDeletingOrder} onCreate={() => setIsCreating(true)} />
+    <OrdersList
+      orders={pageOrders}
+      hasFilters={hasFilters}
+      onEdit={setEditingOrder}
+      onDelete={setDeletingOrder}
+      onCreate={() => setIsCreating(true)}
+      pagination={
+        <OrdersPagination
+          page={page}
+          pageCount={pageCount}
+          resultCount={visibleOrders.length}
+          totalCount={orders.length}
+          onPage={setPage}
+        />
+      }
+    />
 
     {isCreating && <OrderFormModal onClose={() => setIsCreating(false)} onSave={handleSave} />}
     {editingOrder && <OrderFormModal order={editingOrder} onClose={() => setEditingOrder(null)} onSave={handleSave} />}
@@ -95,5 +183,3 @@ export default function OrdersPage() {
     {toast && <div className={`orders-toast orders-toast--${toast.kind}`} role="status" aria-live="polite">{toast.message}</div>}
   </div>;
 }
-
-

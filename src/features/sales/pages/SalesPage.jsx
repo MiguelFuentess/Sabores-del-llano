@@ -103,6 +103,7 @@ export default function SalesPage() {
       }
     } catch (saveError) {
       announce(saveError.message || 'No fue posible guardar la venta.', 'error');
+      throw saveError;
     }
   }
 

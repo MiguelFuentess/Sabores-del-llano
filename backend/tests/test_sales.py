@@ -543,3 +543,67 @@ def test_frontend_sales_integration_and_filters():
     assert "await update(" in sales_page_src
     assert "await remove(" in sales_page_src
 
+
+def test_frontend_sale_form_modal_order_linking():
+    """Verifica que SaleFormModal incorpora el selector opcional de pedidos pendientes,
+    autocompleta producto y cantidades respetando unidades base, previene el doble envío,
+    documenta y resguarda pedidos con múltiples detalles y envía pedido_id al servicio."""
+    sale_modal_src = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "sales"
+        / "components"
+        / "SaleFormModal.jsx"
+    ).read_text(encoding="utf-8")
+    sales_storage_src = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "sales"
+        / "services"
+        / "salesStorage.js"
+    ).read_text(encoding="utf-8")
+    use_orders_src = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "orders"
+        / "hooks"
+        / "useOrders.js"
+    ).read_text(encoding="utf-8")
+
+    # 1. SaleFormModal consulta pedidos mediante useOrders con filtro operativo
+    assert "useOrders" in sale_modal_src
+    assert "useOrders({ soloOperativos: true })" in sale_modal_src
+
+    # 2. El selector existe y filtra órdenes históricas, entregadas o canceladas
+    assert "sale-order-select" in sale_modal_src
+    assert "!order.esHistorico" in sale_modal_src
+    assert "order.status !== 'Entregado'" in sale_modal_src
+    assert "order.status !== 'Cancelado'" in sale_modal_src
+
+    # 3. Permite volver a venta directa y limpiar la selección
+    assert "Venta directa (sin pedido asociado)" in sale_modal_src
+    assert "handleClearOrder" in sale_modal_src
+    assert "Limpiar selección" in sale_modal_src
+
+    # 4. Autocompleta producto, cantidad y precio unitario
+    assert "mapOrderToSaleProduct" in sale_modal_src
+    assert "extractOrderQuantity" in sale_modal_src
+    assert "extractOrderUnitPrice" in sale_modal_src
+
+    # 5. Manejo seguro de pedidos con múltiples productos sin descarte silencioso
+    assert "hasMultipleDetails" in sale_modal_src
+    assert "sales-order-warning" in sale_modal_src
+    assert "hasMultipleDetails" in sale_modal_src and "disabled=" in sale_modal_src
+
+    # 6. Envío de pedido_id y prevención de doble envío
+    assert "pedidoId: selectedOrderId ? Number(selectedOrderId) : undefined" in sale_modal_src
+    assert "isSaving" in sale_modal_src
+
+    # 7. Sincronización de eventos entre ventas y pedidos
+    assert "sabores-del-llano:orders-changed" in sales_storage_src
+    assert "sabores-del-llano:orders-changed" in use_orders_src
+
+

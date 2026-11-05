@@ -6,19 +6,21 @@ import {
   updateOrder,
 } from '../services/ordersStorage.js';
 
-export default function useOrders() {
+export default function useOrders(options = {}) {
   const [state, setState] = useState({
     orders: [],
     loading: true,
     error: '',
   });
   const requestIdRef = useRef(0);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const reload = useCallback(async ({ signal } = {}) => {
     const currentRequestId = ++requestIdRef.current;
     setState((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      const orders = await getOrders({ signal });
+      const orders = await getOrders({ ...optionsRef.current, signal });
       if (currentRequestId === requestIdRef.current) {
         setState({ orders, loading: false, error: '' });
       }
@@ -40,6 +42,18 @@ export default function useOrders() {
     const controller = new AbortController();
     reload({ signal: controller.signal });
     return () => controller.abort();
+  }, [reload]);
+
+  useEffect(() => {
+    const handleOrderChange = () => {
+      reload();
+    };
+    window.addEventListener('sabores-del-llano:orders-changed', handleOrderChange);
+    window.addEventListener('sabores-del-llano:sales-changed', handleOrderChange);
+    return () => {
+      window.removeEventListener('sabores-del-llano:orders-changed', handleOrderChange);
+      window.removeEventListener('sabores-del-llano:sales-changed', handleOrderChange);
+    };
   }, [reload]);
 
   const create = useCallback(async (data) => {

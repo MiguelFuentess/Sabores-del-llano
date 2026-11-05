@@ -2,7 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 import AdminLayout from '../components/layout/AdminLayout.jsx';
 import PlaceholderPage from '../components/ui/PlaceholderPage.jsx';
 import LoginPage from '../features/auth/pages/LoginPage.jsx';
-import DemoAccessGuard from '../features/auth/components/DemoAccessGuard.jsx';
+import AuthGuard from '../features/auth/components/AuthGuard.jsx';
 import DashboardPage from '../features/dashboard/pages/DashboardPage.jsx';
 import OrdersPage from '../features/orders/pages/OrdersPage.jsx';
 import ProductionPage from '../features/production/pages/ProductionPage.jsx';
@@ -15,7 +15,7 @@ const adminPages = [
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/public" replace /> },
-  { path: '/app', element: <DemoAccessGuard><AdminLayout /></DemoAccessGuard>, children: [
+  { path: '/app', element: <AuthGuard><AdminLayout /></AuthGuard>, children: [
     { index: true, element: <Navigate to="dashboard" replace /> },
     { path: 'dashboard', element: <DashboardPage /> },
     { path: 'orders', element: <OrdersPage /> },

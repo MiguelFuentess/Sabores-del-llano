@@ -205,6 +205,9 @@ export async function createSale(data) {
     body: payload,
   });
   window.dispatchEvent(new Event(CHANGE_EVENT));
+  if (payload.pedido_id) {
+    window.dispatchEvent(new Event('sabores-del-llano:orders-changed'));
+  }
   return mapApiSaleToUiSale(created);
 }
 

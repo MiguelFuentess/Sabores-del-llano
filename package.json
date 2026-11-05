@@ -7,7 +7,9 @@
     "dev": "vite",
     "dev:backend": ".\\backend\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -15,7 +17,12 @@
     "react-router-dom": "^7.9.5"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.5"
+    "jsdom": "^29.1.1",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   }
 }

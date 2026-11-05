@@ -6,7 +6,7 @@ import {
   subscribeAuthChanges,
 } from '../services/authService.js';
 
-export default function DemoAccessGuard({ children }) {
+export default function AuthGuard({ children }) {
   const location = useLocation();
   const [authenticated, setAuthenticated] = useState(() => hasAuthenticatedSession());
 

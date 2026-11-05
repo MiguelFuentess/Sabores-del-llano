@@ -634,3 +634,185 @@ def test_frontend_production_integration_and_historical_mysql_integrity():
     assert hist_cierres_count == 482
     assert hist_mov_prod_count == 482
 
+
+def test_production_edit_and_delete_actions_and_history_protection(
+    api_client,
+    auth_headers: dict[str, str],
+    isolated_session: Session,
+):
+    """
+    Verifica los requerimientos de MEDIO-03:
+    1. Existencia e integración de DeleteProductionDialog y ProductionFormModal con soporte de edición.
+    2. Columna Acciones en ProductionHistory mostrando 'Solo lectura' para registros históricos
+       y botones de editar/eliminar para registros operativos.
+    3. Flujo funcional: actualización de producción operativa sincroniza inventario y cierre diario.
+    4. Eliminación de producción operativa elimina movimiento y recalcula cierre diario.
+    5. Protección estricta: PATCH y DELETE sobre registros históricos devuelven 409 Conflict.
+    """
+    page_code = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "production"
+        / "pages"
+        / "ProductionPage.jsx"
+    ).read_text(encoding="utf-8")
+    modal_code = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "production"
+        / "components"
+        / "ProductionFormModal.jsx"
+    ).read_text(encoding="utf-8")
+    dialog_code = (
+        PROJECT_ROOT
+        / "src"
+        / "features"
+        / "production"
+        / "components"
+        / "DeleteProductionDialog.jsx"
+    ).read_text(encoding="utf-8")
+    css_code = (
+        PROJECT_ROOT
+        / "src"
+        / "styles"
+        / "index.css"
+    ).read_text(encoding="utf-8")
+
+    # 1. Componentes y columna de acciones
+    assert "DeleteProductionDialog" in page_code
+    assert "onEdit=" in page_code
+    assert "onDelete=" in page_code
+    assert "Acciones" in page_code
+    assert "Solo lectura" in page_code
+    assert "status-badge" in page_code
+    assert "EditIcon" in page_code
+    assert "TrashIcon" in page_code
+
+    # 2. Modal con soporte para edición y precarga
+    assert "isEditing" in modal_code
+    assert "Editar producción" in modal_code
+    assert "Registrar producción" in modal_code
+    assert "Guardar cambios" in modal_code
+    assert "production-product-fixed" in modal_code
+    assert "Unidad" in modal_code
+    assert "Plato" in modal_code
+    assert "isSaving" in modal_code
+
+    # 3. Diálogo de confirmación de eliminación
+    assert "¿Eliminar registro de producción?" in dialog_code
+    assert "orders-confirm-dialog" in dialog_code
+    assert "Eliminar producción" in dialog_code
+    assert "isDeleting" in dialog_code
+
+    # 4. Estilos de tabla y acciones
+    assert ".production-table__actions-heading" in css_code
+    assert ".production-table__actions" in css_code
+
+    # 5. Flujo en Backend: Crear registro operativo, actualizarlo y eliminarlo
+    create_resp = api_client.post(
+        "/producciones",
+        headers=auth_headers,
+        json={
+            "producto_nombre": "Hayaca",
+            "fecha_produccion": "2026-11-09T08:00:00",
+            "cantidad_producida_base": 75,
+            "sobrante_real_base": 8,
+        },
+    )
+    assert create_resp.status_code == 201
+    prod_data = create_resp.json()
+    prod_id = prod_data["id"]
+    assert prod_data["es_historico"] is False
+    assert prod_data["origen_registro"] == "operativo"
+
+    # Editar registro operativo
+    update_resp = api_client.patch(
+        f"/producciones/{prod_id}",
+        headers=auth_headers,
+        json={
+            "cantidad_producida_base": 85,
+            "sobrante_real_base": 10,
+        },
+    )
+    assert update_resp.status_code == 200
+    updated_data = update_resp.json()
+    assert Decimal(str(updated_data["cantidad_producida_base"])) == Decimal("85.000")
+    assert Decimal(str(updated_data["sobrante_real_base"])) == Decimal("10.000")
+
+    # Validar que inventario y cierre diario se hayan sincronizado
+    mov = isolated_session.scalar(
+        select(MovimientoInventario).where(
+            MovimientoInventario.produccion_id == prod_id
+        )
+    )
+    assert mov is not None
+    assert Decimal(mov.cantidad_base) == Decimal("85.000")
+
+    cierre = isolated_session.scalar(
+        select(CierreDiario).where(
+            CierreDiario.fecha == datetime(2026, 11, 9).date(),
+            CierreDiario.producto_id == prod_data["producto_id"],
+        )
+    )
+    assert cierre is not None
+    assert Decimal(cierre.sobrante_real_base) == Decimal("10.000")
+
+    # Rechazo en caso de intento de modificación de registro histórico
+    hayaca = isolated_session.scalar(
+        select(Producto).where(Producto.nombre == "Hayaca")
+    )
+    hist_tag = build_trace_tag(
+        hoja="Consolidado historico",
+        fila=180,
+        es_sintetico=False,
+    )
+    hist_prod = Produccion(
+        producto_id=hayaca.id,
+        fecha_produccion=datetime(2026, 10, 26, 8, 0, 0),
+        cantidad_producida_base=Decimal("90.000"),
+        observaciones=hist_tag,
+    )
+    isolated_session.add(hist_prod)
+    isolated_session.commit()
+
+    bad_hist_patch = api_client.patch(
+        f"/producciones/{hist_prod.id}",
+        headers=auth_headers,
+        json={"cantidad_producida_base": 999},
+    )
+    assert bad_hist_patch.status_code == 409
+    assert "históricos" in bad_hist_patch.json()["detail"]
+
+    bad_hist_del = api_client.delete(
+        f"/producciones/{hist_prod.id}",
+        headers=auth_headers,
+    )
+    assert bad_hist_del.status_code == 409
+    assert "históricos" in bad_hist_del.json()["detail"]
+
+    # Eliminar registro operativo
+    del_resp = api_client.delete(
+        f"/producciones/{prod_id}",
+        headers=auth_headers,
+    )
+    assert del_resp.status_code == 204
+
+    # Verificar que el registro operativo fue eliminado y su movimiento limpiado
+    assert (
+        isolated_session.scalar(
+            select(Produccion).where(Produccion.id == prod_id)
+        )
+        is None
+    )
+    assert (
+        isolated_session.scalar(
+            select(MovimientoInventario).where(
+                MovimientoInventario.produccion_id == prod_id
+            )
+        )
+        is None
+    )
+
+

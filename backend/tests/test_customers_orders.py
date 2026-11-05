@@ -149,7 +149,7 @@ def test_frontend_demo_orders_cleanup_preserves_ui_and_enforces_rules():
         / "features"
         / "auth"
         / "components"
-        / "DemoAccessGuard.jsx"
+        / "AuthGuard.jsx"
     ).read_text(encoding="utf-8")
     sidebar_src = (
         PROJECT_ROOT / "src" / "components" / "layout" / "Sidebar.jsx"
