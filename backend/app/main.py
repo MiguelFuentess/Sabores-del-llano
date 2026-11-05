@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes.auth import router as auth_router
 from app.api.routes.catalog import router as catalog_router
 from app.api.routes.customers import router as customers_router
+from app.api.routes.demand import router as demand_router
 from app.api.routes.health import router as health_router
 from app.api.routes.orders import router as orders_router
 from app.api.routes.production import router as production_router
@@ -41,6 +42,7 @@ app.include_router(customers_router)
 app.include_router(orders_router)
 app.include_router(production_router)
 app.include_router(sales_router)
+app.include_router(demand_router)
 
 
 @app.exception_handler(Exception)
