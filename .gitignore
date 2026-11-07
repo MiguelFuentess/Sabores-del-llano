@@ -1,2 +1,23 @@
 # Dependencias
 node_modules/
+
+# Artefactos de compilación de Vite (generados en despliegue con npm run build)
+dist/
+dist-ssr/
+
+# Variables de entorno locales (conservar únicamente archivos .env.example)
+.env
+.env.local
+.env.*.local
+
+# Cachés de pruebas y Python
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+
+# Registros y metadatos del sistema operativo
+*.log
+.DS_Store
+Thumbs.db

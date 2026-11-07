@@ -3,9 +3,73 @@ const REMEMBERED_USERNAME_KEY = 'sabores-del-llano-remembered-user-v1';
 const LEGACY_DEMO_ACCESS_KEY = 'sabores-del-llano-demo-access';
 export const AUTH_CHANGE_EVENT = 'sabores-del-llano:auth-changed';
 
-export function getApiBaseUrl() {
-  const configured = import.meta.env?.VITE_API_URL;
-  return (configured ? String(configured).trim().replace(/\/+$/, '') : '') || 'http://127.0.0.1:8000';
+const CONNECTION_ERROR_MESSAGE =
+  'No fue posible conectar con el servidor de Sabores del Llano.';
+
+export function getApiBaseUrl(env = import.meta.env) {
+  const configured = env?.VITE_API_URL;
+  const normalized = configured ? String(configured).trim().replace(/\/+$/, '') : '';
+  if (normalized) {
+    return normalized;
+  }
+  if (env?.PROD) {
+    return '';
+  }
+  return 'http://127.0.0.1:8000';
+}
+
+function shouldRetryViaDevProxy(baseUrl, env = import.meta.env) {
+  return Boolean(env?.DEV) && !env?.PROD && baseUrl !== '/api';
+}
+
+function isJsonContentType(contentType) {
+  const normalized = String(contentType || '').toLowerCase();
+  return normalized.includes('application/json') || normalized.includes('+json');
+}
+
+function isValidSpreadsheetContentType(contentType) {
+  const normalized = String(contentType || '').toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  if (normalized.includes('text/html') || normalized.includes('application/json')) {
+    return false;
+  }
+  return (
+    normalized.includes('spreadsheetml') ||
+    normalized.includes('application/vnd.ms-excel') ||
+    normalized.includes('application/octet-stream')
+  );
+}
+
+async function performApiFetch(path, fetchOptions, { signal, env = import.meta.env } = {}) {
+  const baseUrl = getApiBaseUrl(env);
+  if (!baseUrl) {
+    throw new Error(CONNECTION_ERROR_MESSAGE);
+  }
+
+  try {
+    return await window.fetch(`${baseUrl}${path}`, fetchOptions);
+  } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError') {
+      const abortError = new Error('La solicitud fue cancelada.');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    if (!shouldRetryViaDevProxy(baseUrl, env)) {
+      throw new Error(CONNECTION_ERROR_MESSAGE);
+    }
+    try {
+      return await window.fetch(`/api${path}`, fetchOptions);
+    } catch (fallbackError) {
+      if (signal?.aborted || fallbackError?.name === 'AbortError') {
+        const abortError = new Error('La solicitud fue cancelada.');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
+      throw new Error(CONNECTION_ERROR_MESSAGE);
+    }
+  }
 }
 
 function decodeJwtExpMs(token) {
@@ -86,7 +150,7 @@ function formatApiErrorDetail(payload, fallbackMessage) {
 
 export async function apiRequest(
   path,
-  { method = 'GET', body, headers = {}, auth = true, signal } = {}
+  { method = 'GET', body, headers = {}, auth = true, signal, env = import.meta.env } = {}
 ) {
   const requestHeaders = { ...headers };
 
@@ -107,7 +171,6 @@ export async function apiRequest(
     serializedBody = JSON.stringify(body);
   }
 
-  let response;
   const fetchOptions = {
     method,
     headers: requestHeaders,
@@ -115,25 +178,7 @@ export async function apiRequest(
     signal,
   };
 
-  try {
-    response = await window.fetch(`${getApiBaseUrl()}${path}`, fetchOptions);
-  } catch (error) {
-    if (signal?.aborted || error?.name === 'AbortError') {
-      const abortError = new Error('La solicitud fue cancelada.');
-      abortError.name = 'AbortError';
-      throw abortError;
-    }
-    try {
-      response = await window.fetch(`/api${path}`, fetchOptions);
-    } catch (fallbackError) {
-      if (signal?.aborted || fallbackError?.name === 'AbortError') {
-        const abortError = new Error('La solicitud fue cancelada.');
-        abortError.name = 'AbortError';
-        throw abortError;
-      }
-      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
-    }
-  }
+  const response = await performApiFetch(path, fetchOptions, { signal, env });
 
   if (response.status === 502 || response.status === 503 || response.status === 504) {
     let proxyData = null;
@@ -143,7 +188,7 @@ export async function apiRequest(
       proxyData = null;
     }
     if (!proxyData || !proxyData.detail) {
-      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
+      throw new Error(CONNECTION_ERROR_MESSAGE);
     }
   }
 
@@ -151,11 +196,14 @@ export async function apiRequest(
     return null;
   }
 
+  const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
   let data = null;
+  let jsonParseFailed = false;
   try {
     data = await response.json();
   } catch {
     data = null;
+    jsonParseFailed = true;
   }
 
   if (!response.ok) {
@@ -167,6 +215,10 @@ export async function apiRequest(
     );
     error.status = response.status;
     throw error;
+  }
+
+  if ((contentType && !isJsonContentType(contentType)) || jsonParseFailed) {
+    throw new Error(CONNECTION_ERROR_MESSAGE);
   }
 
   return data;
@@ -193,7 +245,7 @@ function extractFilenameFromDisposition(disposition, fallbackFilename) {
 
 export async function apiDownloadFile(
   path,
-  { fallbackFilename = 'reporte.xlsx', signal } = {}
+  { fallbackFilename = 'reporte.xlsx', signal, env = import.meta.env } = {}
 ) {
   const token = getAccessToken();
   if (!token) {
@@ -211,26 +263,7 @@ export async function apiDownloadFile(
     signal,
   };
 
-  let response;
-  try {
-    response = await window.fetch(`${getApiBaseUrl()}${path}`, fetchOptions);
-  } catch (error) {
-    if (signal?.aborted || error?.name === 'AbortError') {
-      const abortError = new Error('La solicitud fue cancelada.');
-      abortError.name = 'AbortError';
-      throw abortError;
-    }
-    try {
-      response = await window.fetch(`/api${path}`, fetchOptions);
-    } catch (fallbackError) {
-      if (signal?.aborted || fallbackError?.name === 'AbortError') {
-        const abortError = new Error('La solicitud fue cancelada.');
-        abortError.name = 'AbortError';
-        throw abortError;
-      }
-      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
-    }
-  }
+  const response = await performApiFetch(path, fetchOptions, { signal, env });
 
   if (response.status === 502 || response.status === 503 || response.status === 504) {
     let proxyData = null;
@@ -240,7 +273,7 @@ export async function apiDownloadFile(
       proxyData = null;
     }
     if (!proxyData || !proxyData.detail) {
-      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
+      throw new Error(CONNECTION_ERROR_MESSAGE);
     }
   }
 
@@ -262,6 +295,11 @@ export async function apiDownloadFile(
     );
     error.status = response.status;
     throw error;
+  }
+
+  const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+  if (!isValidSpreadsheetContentType(contentType)) {
+    throw new Error(CONNECTION_ERROR_MESSAGE);
   }
 
   const blob = await response.blob();

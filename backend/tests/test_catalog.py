@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
+from app.core.security import create_access_token, hash_password
 from app.db.session import get_db, get_engine
 from app.main import app
-from app.models import Presentacion, Producto
+from app.models import Presentacion, Producto, Usuario
 from app.services.catalog import seed_initial_catalog
 
 
@@ -36,6 +39,7 @@ def catalog_session():
             "presentaciones",
             "productos",
             "clientes",
+            "usuarios",
         ):
             session.execute(text(f"DELETE FROM {table_name}"))
         session.flush()
@@ -44,6 +48,25 @@ def catalog_session():
         session.close()
         transaction.rollback()
         connection.close()
+
+
+@pytest.fixture
+def auth_headers(catalog_session: Session) -> dict[str, str]:
+    user = Usuario(
+        nombre_usuario="admin.catalogo",
+        nombre_completo="Administradora Catálogo",
+        password_hash=hash_password("ClaveSeguraCatalogo2026!"),
+        activo=True,
+    )
+    catalog_session.add(user)
+    catalog_session.commit()
+    token, _ = create_access_token(
+        user_id=user.id,
+        username=user.nombre_usuario,
+        secret_key=get_settings().auth_secret_key,
+        expires_delta=timedelta(minutes=60),
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -58,8 +81,37 @@ def catalog_client(client, catalog_session):
         app.dependency_overrides.pop(get_db, None)
 
 
-def test_seed_initial_catalog_is_idempotent(catalog_client):
-    first = catalog_client.post("/catalogo/inicializar")
+def test_catalog_routes_require_authentication(catalog_client):
+    endpoints = [
+        ("GET", "/productos", None),
+        ("GET", "/productos/activos", None),
+        ("GET", "/productos/1", None),
+        ("POST", "/productos", {"nombre": "Hayaca", "unidad_base": "Unidad"}),
+        ("PATCH", "/productos/1", {"activo": False}),
+        ("GET", "/productos/1/presentaciones", None),
+        ("GET", "/presentaciones", None),
+        ("GET", "/presentaciones/1", None),
+        (
+            "POST",
+            "/presentaciones",
+            {
+                "producto_id": 1,
+                "nombre": "individual",
+                "unidad_venta": "Unidad",
+                "factor_conversion": "1.0000",
+                "precio_actual": "10000.00",
+            },
+        ),
+        ("PATCH", "/presentaciones/1", {"precio_actual": "12500.00"}),
+        ("POST", "/catalogo/inicializar", None),
+    ]
+    for method, path, payload in endpoints:
+        resp = catalog_client.request(method, path, json=payload)
+        assert resp.status_code == 401, f"{method} {path} debería exigir JWT Bearer"
+
+
+def test_seed_initial_catalog_is_idempotent(catalog_client, auth_headers):
+    first = catalog_client.post("/catalogo/inicializar", headers=auth_headers)
     assert first.status_code == 200
     data1 = first.json()
     assert data1["productos_creados"] == ["Hayaca", "Lechona"]
@@ -72,7 +124,7 @@ def test_seed_initial_catalog_is_idempotent(catalog_client):
     assert data1["revisiones_manuales"] == []
 
     # Segunda ejecución: no duplica ni sobrescribe
-    second = catalog_client.post("/catalogo/inicializar")
+    second = catalog_client.post("/catalogo/inicializar", headers=auth_headers)
     assert second.status_code == 200
     data2 = second.json()
     assert data2["productos_creados"] == []
@@ -84,7 +136,7 @@ def test_seed_initial_catalog_is_idempotent(catalog_client):
     ]
     assert data2["revisiones_manuales"] == []
 
-    productos = catalog_client.get("/productos").json()
+    productos = catalog_client.get("/productos", headers=auth_headers).json()
     assert len(productos) == 2
     by_name = {p["nombre"]: p for p in productos}
     assert by_name["Hayaca"]["unidad_base"] == "Unidad"
@@ -132,9 +184,10 @@ def test_seed_initial_catalog_does_not_overwrite_existing_price_and_warns(
     assert ("producto", "Tamal", "nombre") in warning_fields
 
 
-def test_create_update_and_filter_productos(catalog_client):
+def test_create_update_and_filter_productos(catalog_client, auth_headers):
     create_resp = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={
             "nombre": "Hayaca",
             "descripcion": "Hayaca tradicional llanera",
@@ -151,6 +204,7 @@ def test_create_update_and_filter_productos(catalog_client):
     # Duplicado devuelve 409
     dup_resp = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={"nombre": "Hayaca", "unidad_base": "Unidad"},
     )
     assert dup_resp.status_code == 409
@@ -158,24 +212,28 @@ def test_create_update_and_filter_productos(catalog_client):
     # Crear segundo producto inactivo
     lechona_resp = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={"nombre": "Lechona", "unidad_base": "Plato", "activo": False},
     )
     assert lechona_resp.status_code == 201
     lechona_id = lechona_resp.json()["id"]
 
     # Consultar todos vs consultar activos
-    all_prods = catalog_client.get("/productos").json()
+    all_prods = catalog_client.get("/productos", headers=auth_headers).json()
     assert len(all_prods) == 2
 
-    active_prods = catalog_client.get("/productos/activos").json()
+    active_prods = catalog_client.get("/productos/activos", headers=auth_headers).json()
     assert [p["nombre"] for p in active_prods] == ["Hayaca"]
 
-    active_query = catalog_client.get("/productos?solo_activos=true").json()
+    active_query = catalog_client.get(
+        "/productos?solo_activos=true", headers=auth_headers
+    ).json()
     assert [p["nombre"] for p in active_query] == ["Hayaca"]
 
     # Actualizar producto
     patch_resp = catalog_client.patch(
         f"/productos/{lechona_id}",
+        headers=auth_headers,
         json={"activo": True, "descripcion": "Lechona tradicional"},
     )
     assert patch_resp.status_code == 200
@@ -183,15 +241,17 @@ def test_create_update_and_filter_productos(catalog_client):
     assert patch_resp.json()["descripcion"] == "Lechona tradicional"
 
 
-def test_create_update_and_query_presentaciones(catalog_client):
+def test_create_update_and_query_presentaciones(catalog_client, auth_headers):
     prod = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={"nombre": "Lechona", "unidad_base": "Plato"},
     ).json()
     prod_id = prod["id"]
 
     pres_resp = catalog_client.post(
         "/presentaciones",
+        headers=auth_headers,
         json={
             "producto_id": prod_id,
             "nombre": "individual",
@@ -209,6 +269,7 @@ def test_create_update_and_query_presentaciones(catalog_client):
     # Duplicado para el mismo producto devuelve 409
     dup_pres = catalog_client.post(
         "/presentaciones",
+        headers=auth_headers,
         json={
             "producto_id": prod_id,
             "nombre": "individual",
@@ -220,35 +281,41 @@ def test_create_update_and_query_presentaciones(catalog_client):
     assert dup_pres.status_code == 409
 
     # Consultar presentaciones por producto
-    by_prod = catalog_client.get(f"/productos/{prod_id}/presentaciones").json()
+    by_prod = catalog_client.get(
+        f"/productos/{prod_id}/presentaciones", headers=auth_headers
+    ).json()
     assert len(by_prod) == 1
     assert by_prod[0]["id"] == pres_id
 
     # Actualizar presentación
     upd_resp = catalog_client.patch(
         f"/presentaciones/{pres_id}",
+        headers=auth_headers,
         json={"precio_actual": "12500.00"},
     )
     assert upd_resp.status_code == 200
     assert Decimal(upd_resp.json()["precio_actual"]) == Decimal("12500.00")
 
 
-def test_catalog_validations_reject_invalid_payloads(catalog_client):
+def test_catalog_validations_reject_invalid_payloads(catalog_client, auth_headers):
     # Nombre vacío o en blanco
     bad_prod = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={"nombre": "   ", "unidad_base": "Unidad"},
     )
     assert bad_prod.status_code == 422
 
     prod = catalog_client.post(
         "/productos",
+        headers=auth_headers,
         json={"nombre": "Hayaca", "unidad_base": "Unidad"},
     ).json()
 
     # Factor de conversión <= 0
     bad_factor = catalog_client.post(
         "/presentaciones",
+        headers=auth_headers,
         json={
             "producto_id": prod["id"],
             "nombre": "individual",
@@ -262,6 +329,7 @@ def test_catalog_validations_reject_invalid_payloads(catalog_client):
     # Precio negativo
     bad_price = catalog_client.post(
         "/presentaciones",
+        headers=auth_headers,
         json={
             "producto_id": prod["id"],
             "nombre": "individual",

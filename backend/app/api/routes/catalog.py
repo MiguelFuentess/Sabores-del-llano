@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models import Usuario
 from app.schemas.catalog import (
     CatalogSeedResult,
     PresentacionCreate,
@@ -23,6 +25,7 @@ def get_productos(
         description="Si es True, devuelve únicamente los productos activos.",
     ),
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[ProductoResponse]:
     return catalog_service.list_productos(session, solo_activos=solo_activos)
 
@@ -30,6 +33,7 @@ def get_productos(
 @router.get("/productos/activos", response_model=list[ProductoResponse])
 def get_productos_activos(
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[ProductoResponse]:
     return catalog_service.list_productos(session, solo_activos=True)
 
@@ -38,6 +42,7 @@ def get_productos_activos(
 def get_producto(
     producto_id: int,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> ProductoResponse:
     return catalog_service.get_producto_or_404(session, producto_id)
 
@@ -50,6 +55,7 @@ def get_producto(
 def post_producto(
     payload: ProductoCreate,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> ProductoResponse:
     return catalog_service.create_producto(session, payload)
 
@@ -59,6 +65,7 @@ def patch_producto(
     producto_id: int,
     payload: ProductoUpdate,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> ProductoResponse:
     return catalog_service.update_producto(session, producto_id, payload)
 
@@ -74,6 +81,7 @@ def get_presentaciones_por_producto(
         description="Si es True, devuelve únicamente las presentaciones activas del producto.",
     ),
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[PresentacionResponse]:
     return catalog_service.list_presentaciones(
         session, producto_id=producto_id, solo_activas=solo_activas
@@ -91,6 +99,7 @@ def get_presentaciones(
         description="Si es True, devuelve únicamente las presentaciones activas.",
     ),
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[PresentacionResponse]:
     return catalog_service.list_presentaciones(
         session, producto_id=producto_id, solo_activas=solo_activas
@@ -104,6 +113,7 @@ def get_presentaciones(
 def get_presentacion(
     presentacion_id: int,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PresentacionResponse:
     return catalog_service.get_presentacion_or_404(session, presentacion_id)
 
@@ -116,6 +126,7 @@ def get_presentacion(
 def post_presentacion(
     payload: PresentacionCreate,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PresentacionResponse:
     return catalog_service.create_presentacion(session, payload)
 
@@ -128,6 +139,7 @@ def patch_presentacion(
     presentacion_id: int,
     payload: PresentacionUpdate,
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PresentacionResponse:
     return catalog_service.update_presentacion(session, presentacion_id, payload)
 
@@ -135,5 +147,6 @@ def patch_presentacion(
 @router.post("/catalogo/inicializar", response_model=CatalogSeedResult)
 def post_inicializar_catalogo(
     session: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> CatalogSeedResult:
     return catalog_service.seed_initial_catalog(session)

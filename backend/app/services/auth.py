@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 if str(Path(__file__).resolve().parents[2]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.core.config import get_settings
+from app.core.config import get_settings, is_placeholder_value
 from app.core.security import (
     InvalidTokenError,
     create_access_token,
@@ -144,6 +144,10 @@ def initialize_admin_from_env(
         raise ValueError(
             "La variable de entorno ADMIN_INITIAL_USERNAME es obligatoria y no está configurada."
         )
+    if is_placeholder_value(raw_username):
+        raise ValueError(
+            "ADMIN_INITIAL_USERNAME no puede usar un valor de plantilla o marcador."
+        )
     if len(raw_username) > 80:
         raise ValueError(
             "ADMIN_INITIAL_USERNAME no puede superar los 80 caracteres."
@@ -151,6 +155,10 @@ def initialize_admin_from_env(
     if not raw_password:
         raise ValueError(
             "La variable de entorno ADMIN_INITIAL_PASSWORD es obligatoria y no está configurada."
+        )
+    if is_placeholder_value(raw_password):
+        raise ValueError(
+            "ADMIN_INITIAL_PASSWORD no puede usar un valor de plantilla o marcador."
         )
     if len(raw_password) < 8:
         raise ValueError(

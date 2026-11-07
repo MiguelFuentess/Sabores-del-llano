@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import BIGINT, TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base import MYSQL_TABLE_ARGS, Base
 
 UNSIGNED_BIGINT = BIGINT(unsigned=True)
 TINYINT_BOOL = TINYINT(1)
@@ -33,6 +33,7 @@ class Cliente(Base):
     __table_args__ = (
         Index("idx_clientes_nombre", "nombre"),
         Index("idx_clientes_telefono", "telefono"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -57,7 +58,10 @@ class Cliente(Base):
 
 class Usuario(Base):
     __tablename__ = "usuarios"
-    __table_args__ = (UniqueConstraint("nombre_usuario", name="nombre_usuario"),)
+    __table_args__ = (
+        UniqueConstraint("nombre_usuario", name="nombre_usuario"),
+        MYSQL_TABLE_ARGS,
+    )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
     nombre_usuario: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -82,7 +86,10 @@ class Usuario(Base):
 
 class Producto(Base):
     __tablename__ = "productos"
-    __table_args__ = (UniqueConstraint("nombre", name="nombre"),)
+    __table_args__ = (
+        UniqueConstraint("nombre", name="nombre"),
+        MYSQL_TABLE_ARGS,
+    )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -120,6 +127,7 @@ class Presentacion(Base):
         ),
         CheckConstraint("factor_conversion > 0", name="presentaciones_chk_1"),
         CheckConstraint("precio_actual >= 0", name="presentaciones_chk_2"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -171,6 +179,7 @@ class Pedido(Base):
         Index("idx_pedidos_cliente", "cliente_id"),
         Index("idx_pedidos_fecha_estado", "fecha_pedido", "estado"),
         Index("idx_pedidos_entrega_estado", "fecha_entrega_prevista", "estado"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -231,6 +240,7 @@ class DetallePedido(Base):
         CheckConstraint("cantidad > 0", name="detalle_pedidos_chk_1"),
         CheckConstraint("precio_unitario >= 0", name="detalle_pedidos_chk_2"),
         CheckConstraint("factor_conversion_snapshot > 0", name="detalle_pedidos_chk_3"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -272,6 +282,7 @@ class Venta(Base):
     __table_args__ = (
         UniqueConstraint("pedido_id", name="pedido_id"),
         Index("idx_ventas_fecha_estado", "fecha_venta", "estado"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -313,6 +324,7 @@ class DetalleVenta(Base):
         CheckConstraint("cantidad > 0", name="detalle_ventas_chk_1"),
         CheckConstraint("precio_unitario >= 0", name="detalle_ventas_chk_2"),
         CheckConstraint("factor_conversion_snapshot > 0", name="detalle_ventas_chk_3"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -357,6 +369,7 @@ class Produccion(Base):
         Index("producto_id", "producto_id"),
         Index("idx_producciones_fecha_producto", "fecha_produccion", "producto_id"),
         CheckConstraint("cantidad_producida_base > 0", name="producciones_chk_1"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -394,6 +407,7 @@ class MovimientoInventario(Base):
         Index("idx_movimientos_produccion", "produccion_id"),
         Index("idx_movimientos_detalle_venta", "detalle_venta_id"),
         CheckConstraint("cantidad_base > 0", name="chk_movimientos_cantidad"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -466,6 +480,7 @@ class CierreDiario(Base):
         Index("idx_cierres_fecha", "fecha"),
         CheckConstraint("existencia_calculada_base >= 0", name="chk_cierres_existencia"),
         CheckConstraint("sobrante_real_base >= 0", name="chk_cierres_sobrante"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
@@ -517,6 +532,7 @@ class Gasto(Base):
         Index("idx_gastos_fecha_categoria", "fecha", "categoria"),
         Index("idx_gastos_tipo_fecha", "tipo", "fecha"),
         CheckConstraint("valor > 0", name="chk_gastos_valor"),
+        MYSQL_TABLE_ARGS,
     )
 
     id: Mapped[int] = mapped_column(PK_BIGINT, primary_key=True, autoincrement=True)
