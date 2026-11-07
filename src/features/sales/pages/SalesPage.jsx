@@ -8,6 +8,7 @@ import SaleFormModal from '../components/SaleFormModal.jsx';
 import SalesFilters from '../components/SalesFilters.jsx';
 import { getSaleProduct, SALES_PAGE_SIZE } from '../data/salesOptions.js';
 import useSales from '../hooks/useSales.js';
+import { downloadSalesReport } from '../services/salesStorage.js';
 import { filterSales, formatCOP, formatSaleDate, formatSaleTime, summarizeSales } from '../utils/filterSales.js';
 
 const countFormat = new Intl.NumberFormat('es-CO');
@@ -62,7 +63,7 @@ function currentDate() {
 }
 
 export default function SalesPage() {
-  const { openMenu } = useOutletContext();
+  const { openMenu } = useOutletContext() || {};
   const { sales, error: storageError, create, update, remove } = useSales();
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState('all');
@@ -71,6 +72,7 @@ export default function SalesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
   const [deletingSale, setDeletingSale] = useState(null);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
@@ -117,9 +119,33 @@ export default function SalesPage() {
     }
   }
 
+  async function handleDownloadReport() {
+    if (isDownloadingReport) return;
+    if (visibleSales.length === 0) {
+      announce(
+        'No hay ventas registradas para los filtros seleccionados. Ajusta la búsqueda o los filtros antes de descargar.',
+        'error'
+      );
+      return;
+    }
+
+    setIsDownloadingReport(true);
+    try {
+      const fileName = await downloadSalesReport({ search, period, product });
+      announce(`Reporte descargado: ${fileName}`);
+    } catch (downloadError) {
+      announce(
+        downloadError?.message || 'No fue posible descargar el reporte de ventas.',
+        'error'
+      );
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  }
+
   return <div className="sales-page">
     <button className="orders-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span /><span /><span /></button>
-    <PageHeader title="Ventas" description="Consulta el historial de ventas y registra las operaciones efectivamente realizadas." actions={<><Button variant="quiet" className="sales-report-button" aria-disabled="true" title="Exportación disponible en una etapa posterior"><DownloadIcon />Descargar reporte</Button><Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar venta</Button></>} />
+    <PageHeader title="Ventas" description="Consulta el historial de ventas y registra las operaciones efectivamente realizadas." actions={<><Button variant="quiet" className="sales-report-button" disabled={isDownloadingReport} title={visibleSales.length === 0 ? 'No hay ventas en los filtros actuales para exportar' : 'Descargar reporte en Excel (.xlsx) según los filtros aplicados'} onClick={handleDownloadReport}><DownloadIcon />{isDownloadingReport ? 'Descargando...' : 'Descargar reporte'}</Button><Button onClick={() => setIsCreating(true)}><PlusIcon />Registrar venta</Button></>} />
 
     <section className="sales-metrics" aria-label="Métricas principales">
       <StatCard label="Total ventas (período)" value={formatCOP(summary.total)} detail={`${countFormat.format(summary.count)} transacciones registradas`} />

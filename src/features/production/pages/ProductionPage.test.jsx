@@ -1,12 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProductionPage from './ProductionPage.jsx';
 import useProductionRecords from '../hooks/useProductionRecords.js';
+import { downloadProductionReport } from '../services/productionStorage.js';
 import useSales from '../../sales/hooks/useSales.js';
 
 vi.mock('../hooks/useProductionRecords.js', () => ({
   default: vi.fn(),
+}));
+
+vi.mock('../services/productionStorage.js', () => ({
+  downloadProductionReport: vi.fn(),
 }));
 
 vi.mock('../../sales/hooks/useSales.js', () => ({
@@ -180,5 +185,68 @@ describe('ProductionPage - Periodo predeterminado y paginación', () => {
     // Al hacer clic en editar, abre el modal de edición
     fireEvent.click(editBtn);
     expect(screen.getByRole('heading', { name: 'Editar producción' })).toBeInTheDocument();
+  });
+
+  it('descarga el reporte Excel enviando el período y producto filtrados', async () => {
+    const records = generateMockRecords(10);
+    useProductionRecords.mockReturnValue({
+      records,
+      error: '',
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    });
+    downloadProductionReport.mockResolvedValueOnce(
+      'reporte_produccion_balance_hayacas_2026-11-06.xlsx'
+    );
+
+    render(
+      <MemoryRouter>
+        <ProductionPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Todo el historial' }));
+    fireEvent.change(screen.getByLabelText('Filtrar productos'), {
+      target: { value: 'hayacas' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar reporte' }));
+
+    await waitFor(() => {
+      expect(downloadProductionReport).toHaveBeenCalledTimes(1);
+    });
+    expect(downloadProductionReport).toHaveBeenCalledWith({
+      period: 'all',
+      product: 'hayacas',
+    });
+    expect(
+      await screen.findByText(
+        /Reporte descargado: reporte_produccion_balance_hayacas_2026-11-06\.xlsx/i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('informa al usuario y evita descargar un archivo vacío cuando no hay registros de producción', () => {
+    useProductionRecords.mockReturnValue({
+      records: [],
+      error: '',
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <ProductionPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar reporte' }));
+
+    expect(downloadProductionReport).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /No hay registros de producción para los filtros seleccionados\. Ajusta el período o el producto antes de descargar\./i
+    );
   });
 });

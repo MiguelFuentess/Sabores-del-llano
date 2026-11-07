@@ -1,4 +1,5 @@
-import { apiRequest } from '../../auth/services/authService.js';
+import { apiDownloadFile, apiRequest } from '../../auth/services/authService.js';
+import { getSalesPeriodBounds } from '../utils/filterSales.js';
 import { validateSale } from '../utils/validateSale.js';
 
 const LEGACY_SALES_STORAGE_KEY = 'sabores-del-llano-sales-v1';
@@ -251,4 +252,53 @@ export function subscribeSales(onChange) {
   return () => {
     window.removeEventListener(CHANGE_EVENT, onChange);
   };
+}
+
+function getColombiaDateStamp() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+export async function downloadSalesReport({
+  search = '',
+  period = 'all',
+  product = '',
+  estado = 'concretada',
+  incluirHistoricos = true,
+  incluirSinteticos = true,
+  soloOperativos = false,
+  signal,
+} = {}) {
+  const params = new URLSearchParams();
+  if (search && String(search).trim()) {
+    params.set('q', String(search).trim());
+  }
+  if (estado) {
+    params.set('estado', String(estado));
+  }
+  if (product) {
+    params.set(
+      'producto_nombre',
+      PRODUCT_TO_API[String(product).toLowerCase()] ?? product
+    );
+  }
+  const bounds = getSalesPeriodBounds(period);
+  if (bounds?.from) params.set('fecha_desde', bounds.from);
+  if (bounds?.to) params.set('fecha_hasta', bounds.to);
+  if (period) params.set('periodo', String(period));
+  params.set('incluir_historicos', String(Boolean(incluirHistoricos)));
+  params.set('incluir_sinteticos', String(Boolean(incluirSinteticos)));
+  if (soloOperativos) params.set('solo_operativos', 'true');
+
+  const prodSlug = product ? `_${String(product).toLowerCase()}` : '';
+  const fallbackFilename = `reporte_historial_ventas${prodSlug}_${getColombiaDateStamp()}.xlsx`;
+
+  return apiDownloadFile(`/ventas/reporte?${params.toString()}`, {
+    fallbackFilename,
+    signal,
+  });
 }

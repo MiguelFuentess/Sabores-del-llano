@@ -172,6 +172,123 @@ export async function apiRequest(
   return data;
 }
 
+function extractFilenameFromDisposition(disposition, fallbackFilename) {
+  if (!disposition || typeof disposition !== 'string') {
+    return fallbackFilename;
+  }
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;\s]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].replace(/["']/g, ''));
+    } catch {
+      return utf8Match[1].replace(/["']/g, '');
+    }
+  }
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1].trim();
+  }
+  return fallbackFilename;
+}
+
+export async function apiDownloadFile(
+  path,
+  { fallbackFilename = 'reporte.xlsx', signal } = {}
+) {
+  const token = getAccessToken();
+  if (!token) {
+    clearAuthSession();
+    const error = new Error('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+    error.status = 401;
+    throw error;
+  }
+
+  const fetchOptions = {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+  };
+
+  let response;
+  try {
+    response = await window.fetch(`${getApiBaseUrl()}${path}`, fetchOptions);
+  } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError') {
+      const abortError = new Error('La solicitud fue cancelada.');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    try {
+      response = await window.fetch(`/api${path}`, fetchOptions);
+    } catch (fallbackError) {
+      if (signal?.aborted || fallbackError?.name === 'AbortError') {
+        const abortError = new Error('La solicitud fue cancelada.');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
+      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
+    }
+  }
+
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    let proxyData = null;
+    try {
+      proxyData = await response.clone().json();
+    } catch {
+      proxyData = null;
+    }
+    if (!proxyData || !proxyData.detail) {
+      throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
+    }
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      clearAuthSession();
+    }
+    let errorData = null;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = null;
+    }
+    const error = new Error(
+      formatApiErrorDetail(
+        errorData,
+        `No fue posible generar el reporte (${response.status}).`
+      )
+    );
+    error.status = response.status;
+    throw error;
+  }
+
+  const blob = await response.blob();
+  if (!blob || blob.size === 0) {
+    throw new Error('No hay información disponible para descargar con los filtros actuales.');
+  }
+
+  const filename = extractFilenameFromDisposition(
+    response.headers?.get?.('Content-Disposition'),
+    fallbackFilename
+  );
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(objectUrl);
+  }, 1000);
+
+  return filename;
+}
+
 export async function loginWithCredentials({
   username,
   password,

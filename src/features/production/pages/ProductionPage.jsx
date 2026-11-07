@@ -7,6 +7,7 @@ import DeleteProductionDialog from '../components/DeleteProductionDialog.jsx';
 import ProductionFormModal from '../components/ProductionFormModal.jsx';
 import { PRODUCTION_PRODUCTS } from '../data/productionOptions.js';
 import useProductionRecords from '../hooks/useProductionRecords.js';
+import { downloadProductionReport } from '../services/productionStorage.js';
 import useSales from '../../sales/hooks/useSales.js';
 import { filterSales } from '../../sales/utils/filterSales.js';
 import {
@@ -372,6 +373,7 @@ export default function ProductionPage() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [deletingRecord, setDeletingRecord] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
@@ -493,6 +495,31 @@ export default function ProductionPage() {
     }
   }
 
+  async function handleDownloadReport() {
+    if (isDownloadingReport) return;
+    if (sortedFiltered.length === 0) {
+      announce(
+        'No hay registros de producción para los filtros seleccionados. Ajusta el período o el producto antes de descargar.',
+        'error'
+      );
+      return;
+    }
+
+    setIsDownloadingReport(true);
+    try {
+      const fileName = await downloadProductionReport({ period, product });
+      announce(`Reporte descargado: ${fileName}`);
+    } catch (downloadError) {
+      announce(
+        downloadError?.message ||
+          'No fue posible descargar el reporte de producción.',
+        'error'
+      );
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  }
+
   return (
     <div className="production-page">
       <button
@@ -513,11 +540,16 @@ export default function ProductionPage() {
             <Button
               variant="quiet"
               className="production-report-button"
-              aria-disabled="true"
-              title="Exportación disponible en una etapa posterior"
+              disabled={isDownloadingReport}
+              title={
+                sortedFiltered.length === 0
+                  ? 'No hay registros en los filtros actuales para exportar'
+                  : 'Descargar reporte en Excel (.xlsx) según los filtros aplicados'
+              }
+              onClick={handleDownloadReport}
             >
               <DownloadIcon />
-              Descargar reporte
+              {isDownloadingReport ? 'Descargando...' : 'Descargar reporte'}
             </Button>
             <Button onClick={() => setIsCreating(true)}>
               <PlusIcon />
