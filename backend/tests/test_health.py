@@ -49,7 +49,9 @@ def test_database_health_runs_simple_query(client, monkeypatch):
 
 def test_cors_defaults_are_explicit_origins():
     assert DEFAULT_FRONTEND_ORIGINS == (
+        "https://sabores-del-llano-1.onrender.com",
         "http://localhost:5173",
+        "http://localhost:3000",
         "http://127.0.0.1:5173",
     )
     assert "*" not in DEFAULT_FRONTEND_ORIGINS
@@ -64,7 +66,9 @@ def test_cors_rejects_wildcard_origins(monkeypatch):
 
 def test_cors_preflight_allows_configured_and_local_dev_origins(client):
     for origin in (
+        "https://sabores-del-llano-1.onrender.com",
         "http://localhost:5173",
+        "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
     ):
@@ -78,4 +82,15 @@ def test_cors_preflight_allows_configured_and_local_dev_origins(client):
         )
         assert resp.status_code == 200
         assert resp.headers.get("access-control-allow-origin") == origin
+        assert resp.headers.get("access-control-allow-credentials") == "true"
+
+    blocked_resp = client.options(
+        "/auth/login",
+        headers={
+            "Origin": "https://origen-no-autorizado.example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type,Authorization",
+        },
+    )
+    assert blocked_resp.headers.get("access-control-allow-origin") is None
 

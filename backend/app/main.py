@@ -18,6 +18,17 @@ from app.core.config import get_settings
 settings = get_settings()
 logging.basicConfig(level=logging.INFO)
 
+origins = list(
+    dict.fromkeys(
+        [
+            "https://sabores-del-llano-1.onrender.com",
+            "http://localhost:5173",
+            "http://localhost:3000",
+            *settings.frontend_origins,
+        ]
+    )
+)
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
@@ -25,15 +36,16 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(settings.frontend_origins),
+    allow_origins=origins,
     allow_origin_regex=(
         r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
         if settings.environment == "development"
         else None
     ),
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 app.include_router(health_router)
 app.include_router(auth_router)

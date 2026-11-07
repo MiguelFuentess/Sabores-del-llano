@@ -9,7 +9,14 @@ from dotenv import load_dotenv
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_DIR / ".env")
 
-DEFAULT_FRONTEND_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
+PRODUCTION_FRONTEND_ORIGIN = "https://sabores-del-llano-1.onrender.com"
+DEFAULT_FRONTEND_ORIGINS = (
+    PRODUCTION_FRONTEND_ORIGIN,
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+)
+DEFAULT_PRODUCTION_FRONTEND_ORIGINS = (PRODUCTION_FRONTEND_ORIGIN,)
 DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 480
 _PLACEHOLDER_PREFIXES = (
     "REEMPLAZAR",
@@ -60,11 +67,6 @@ def get_settings() -> Settings:
     is_production = environment == "production"
 
     configured_origins = os.getenv("FRONTEND_ORIGINS")
-    if is_production and configured_origins is None:
-        raise ValueError(
-            "FRONTEND_ORIGINS must be explicitly configured when APP_ENV=production."
-        )
-
     origins = (
         tuple(
             origin.strip().rstrip("/")
@@ -72,7 +74,11 @@ def get_settings() -> Settings:
             if origin.strip()
         )
         if configured_origins is not None
-        else DEFAULT_FRONTEND_ORIGINS
+        else (
+            DEFAULT_PRODUCTION_FRONTEND_ORIGINS
+            if is_production
+            else DEFAULT_FRONTEND_ORIGINS
+        )
     )
     if is_production and not origins:
         raise ValueError(

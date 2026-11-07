@@ -27,7 +27,7 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "480"
       - key: FRONTEND_ORIGINS
-        sync: false
+        value: "https://sabores-del-llano-1.onrender.com"
       - key: ADMIN_INITIAL_USERNAME
         sync: false
       - key: ADMIN_INITIAL_PASSWORD
@@ -43,7 +43,7 @@ services:
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: "https://sabores-del-llano.onrender.com"
     routes:
       - type: rewrite
         source: /*

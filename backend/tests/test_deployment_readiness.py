@@ -211,8 +211,14 @@ def test_production_env_enforces_required_non_placeholder_variables_and_https(
     assert ok_settings.environment == "production"
     assert ok_settings.frontend_origins == (valid_origin,)
 
-    # 1. Falta FRONTEND_ORIGINS
+    # 1. Si se omite FRONTEND_ORIGINS en producción usa el dominio oficial en Render; si está vacío falla
     monkeypatch.delenv("FRONTEND_ORIGINS")
+    default_prod_settings = get_settings()
+    assert default_prod_settings.frontend_origins == (
+        "https://sabores-del-llano-1.onrender.com",
+    )
+
+    monkeypatch.setenv("FRONTEND_ORIGINS", "   ")
     with pytest.raises(ValueError, match="FRONTEND_ORIGINS"):
         get_settings()
 
