@@ -231,9 +231,6 @@ function ProductionHistory({ records, sales, onEdit, onDelete }) {
                 const efficiencyPct = record.quantity
                   ? `${((dateSales / record.quantity) * 100).toFixed(1)}% vendido`
                   : 'Sin lote asignado';
-                const isReadOnly =
-                  Boolean(record.esHistorico) ||
-                  record.origenRegistro !== 'operativo';
                 const unitAbbr =
                   record.baseUnit === 'Plato' ? 'platos' : 'uds';
 
@@ -257,37 +254,28 @@ function ProductionHistory({ records, sales, onEdit, onDelete }) {
                     </td>
                     <td className="production-unavailable">{efficiencyPct}</td>
                     <td className="production-table__actions">
-                      {isReadOnly ? (
-                        <span
-                          className="status-badge status-badge--neutral"
-                          title="Registro histórico protegido contra modificaciones"
+                      <div className="sales-table__actions">
+                        <button
+                          type="button"
+                          title={`Editar producción de ${productLabel}`}
+                          aria-label={`Editar producción de ${productLabel} del ${formatDate(
+                            record.date
+                          )}`}
+                          onClick={() => onEdit(record)}
                         >
-                          Solo lectura
-                        </span>
-                      ) : (
-                        <div className="sales-table__actions">
-                          <button
-                            type="button"
-                            title={`Editar producción de ${productLabel}`}
-                            aria-label={`Editar producción de ${productLabel} del ${formatDate(
-                              record.date
-                            )}`}
-                            onClick={() => onEdit(record)}
-                          >
-                            <EditIcon />
-                          </button>
-                          <button
-                            type="button"
-                            title={`Eliminar producción de ${productLabel}`}
-                            aria-label={`Eliminar producción de ${productLabel} del ${formatDate(
-                              record.date
-                            )}`}
-                            onClick={() => onDelete(record)}
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      )}
+                          <EditIcon />
+                        </button>
+                        <button
+                          type="button"
+                          title={`Eliminar producción de ${productLabel}`}
+                          aria-label={`Eliminar producción de ${productLabel} del ${formatDate(
+                            record.date
+                          )}`}
+                          onClick={() => onDelete(record)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -306,12 +294,80 @@ function ProductionHistory({ records, sales, onEdit, onDelete }) {
   );
 }
 
+const PRODUCTION_PAGE_SIZE = 15;
+
+function ProductionPagination({
+  page,
+  pageCount,
+  resultCount,
+  totalCount,
+  onPage,
+}) {
+  const start = resultCount ? (page - 1) * PRODUCTION_PAGE_SIZE + 1 : 0;
+  const end = Math.min(page * PRODUCTION_PAGE_SIZE, resultCount);
+  const maxVisiblePages = 7;
+  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(pageCount, startPage + maxVisiblePages - 1);
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  const visiblePageNumbers = Array.from(
+    { length: endPage - startPage + 1 },
+    (_, index) => startPage + index
+  );
+
+  return (
+    <footer className="production-pagination sales-pagination">
+      <p>
+        Mostrando <strong>{start}–{end}</strong> de{' '}
+        <strong>{resultCount}</strong> registros de producción{' '}
+        <span>
+          ({totalCount} en total · Página {page} de {pageCount})
+        </span>
+      </p>
+      {pageCount > 1 && (
+        <nav aria-label="Paginación de producción">
+          <button
+            type="button"
+            aria-label="Página anterior"
+            disabled={page === 1}
+            onClick={() => onPage(page - 1)}
+          >
+            ‹
+          </button>
+          {visiblePageNumbers.map((number) => (
+            <button
+              key={number}
+              type="button"
+              className={number === page ? 'is-active' : ''}
+              aria-current={number === page ? 'page' : undefined}
+              onClick={() => onPage(number)}
+            >
+              {number}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-label="Página siguiente"
+            disabled={page === pageCount}
+            onClick={() => onPage(page + 1)}
+          >
+            ›
+          </button>
+        </nav>
+      )}
+    </footer>
+  );
+}
+
 export default function ProductionPage() {
-  const { openMenu } = useOutletContext();
+  const outletContext = useOutletContext();
+  const openMenu = outletContext?.openMenu;
   const { records, error, create, update, remove } = useProductionRecords();
   const { sales } = useSales();
-  const [period, setPeriod] = useState('all');
+  const [period, setPeriod] = useState('15days');
   const [product, setProduct] = useState('');
+  const [page, setPage] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [deletingRecord, setDeletingRecord] = useState(null);
@@ -328,6 +384,33 @@ export default function ProductionPage() {
     () => filterSales(sales, { period, product }),
     [sales, period, product]
   );
+
+  const sortedFiltered = useMemo(
+    () =>
+      [...filtered].sort(
+        (a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id)
+      ),
+    [filtered]
+  );
+
+  const pageCount = Math.max(1, Math.ceil(sortedFiltered.length / PRODUCTION_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), pageCount);
+
+  useEffect(() => {
+    setPage(1);
+  }, [period, product]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  const displayedRecords = useMemo(() => {
+    if (period !== 'all') return sortedFiltered;
+    const start = (safePage - 1) * PRODUCTION_PAGE_SIZE;
+    return sortedFiltered.slice(start, start + PRODUCTION_PAGE_SIZE);
+  }, [period, sortedFiltered, safePage]);
   const totals = useMemo(() => {
     const byDateProductLeftovers = {};
     const acc = filtered.reduce(
@@ -366,24 +449,10 @@ export default function ProductionPage() {
   }
 
   function handleEdit(record) {
-    if (record.esHistorico || record.origenRegistro !== 'operativo') {
-      announce(
-        'Los registros históricos están protegidos y no pueden modificarse.',
-        'error'
-      );
-      return;
-    }
     setEditingRecord(record);
   }
 
   function handleDelete(record) {
-    if (record.esHistorico || record.origenRegistro !== 'operativo') {
-      announce(
-        'Los registros históricos están protegidos y no pueden eliminarse.',
-        'error'
-      );
-      return;
-    }
     setDeletingRecord(record);
   }
 
@@ -542,11 +611,20 @@ export default function ProductionPage() {
       )}
       <ProductionChart records={filtered} sales={filteredSales} />
       <ProductionHistory
-        records={filtered}
+        records={displayedRecords}
         sales={filteredSales}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />
+      {period === 'all' && (
+        <ProductionPagination
+          page={safePage}
+          pageCount={pageCount}
+          resultCount={sortedFiltered.length}
+          totalCount={records.length}
+          onPage={setPage}
+        />
+      )}
       {isCreating && (
         <ProductionFormModal
           onClose={() => setIsCreating(false)}

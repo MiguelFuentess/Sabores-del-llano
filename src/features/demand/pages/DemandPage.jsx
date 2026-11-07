@@ -14,14 +14,14 @@ const dateFormatter = new Intl.DateTimeFormat('es-CO', {
   day: '2-digit',
   month: 'short',
   year: 'numeric',
-  timeZone: 'UTC',
+  timeZone: 'America/Bogota',
 });
 
 function formatIsoDate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return 'No disponible';
   const clean = dateStr.slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return dateStr;
-  return dateFormatter.format(new Date(`${clean}T12:00:00Z`));
+  return dateFormatter.format(new Date(`${clean}T12:00:00-05:00`));
 }
 
 function formatUnitPlural(unidadBase, count = 2) {
@@ -70,7 +70,6 @@ export default function DemandPage() {
     fechaHasta: '',
   });
   const [horizonte, setHorizonte] = useState('proxima_semana');
-  const [incluirSinteticos, setIncluirSinteticos] = useState(true);
 
   const [forecast, setForecast] = useState(null);
   const [isEstimating, setIsEstimating] = useState(false);
@@ -78,13 +77,16 @@ export default function DemandPage() {
   const [reportNotice, setReportNotice] = useState('');
 
   useEffect(() => {
+    let isCancelled = false;
     const controller = new AbortController();
     setIsLoadingContext(true);
     setContextError('');
 
     getDemandHistoricalContext({ signal: controller.signal })
       .then((ctx) => {
+        if (isCancelled || controller.signal.aborted) return;
         setContextoHistorico(ctx);
+        setContextError('');
         const firstProd =
           Array.isArray(ctx?.productos) && ctx.productos.length > 0
             ? ctx.productos[0]
@@ -106,19 +108,28 @@ export default function DemandPage() {
         }));
       })
       .catch((err) => {
-        if (err?.name === 'AbortError') return;
-        setContextError(
-          err?.message ||
-            'No fue posible cargar el contexto histórico de demanda.'
-        );
+        if (isCancelled || controller.signal.aborted || err?.name === 'AbortError') {
+          return;
+        }
+        const message = String(err?.message || '');
+        const specificMessage =
+          err?.kind === 'auth'
+            ? 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+            : message && !message.toLowerCase().includes('conectar con el servidor')
+              ? message
+              : 'No fue posible sincronizar automáticamente el calendario histórico. Puedes indicar las fechas de análisis y generar la estimación.';
+        setContextError(specificMessage);
       })
       .finally(() => {
-        if (!controller.signal.aborted) {
+        if (!isCancelled && !controller.signal.aborted) {
           setIsLoadingContext(false);
         }
       });
 
-    return () => controller.abort();
+    return () => {
+      isCancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const productOptions = useMemo(() => {
@@ -143,29 +154,17 @@ export default function DemandPage() {
   }, [productOptions, productoSeleccionado]);
 
   const dateBounds = useMemo(() => {
-    const minGlobal = incluirSinteticos
-      ? contextoHistorico?.fecha_minima_global
-      : contextoHistorico?.fecha_inicio_datos_reales ||
-        contextoHistorico?.fecha_minima_global;
-    const maxGlobal = incluirSinteticos
-      ? contextoHistorico?.fecha_maxima_global
-      : contextoHistorico?.fecha_maxima_datos_reales ||
-        contextoHistorico?.fecha_maxima_global;
+    const minGlobal = contextoHistorico?.fecha_minima_global;
+    const maxGlobal = contextoHistorico?.fecha_maxima_global;
 
-    const minProd = incluirSinteticos
-      ? activeProductContext?.fecha_minima_ventas
-      : activeProductContext?.fecha_minima_reales ||
-        activeProductContext?.fecha_minima_ventas;
-    const maxProd = incluirSinteticos
-      ? activeProductContext?.fecha_maxima_ventas
-      : activeProductContext?.fecha_maxima_reales ||
-        activeProductContext?.fecha_maxima_ventas;
+    const minProd = activeProductContext?.fecha_minima_ventas;
+    const maxProd = activeProductContext?.fecha_maxima_ventas;
 
     return {
       min: minProd || minGlobal || '',
       max: maxProd || maxGlobal || '',
     };
-  }, [activeProductContext, contextoHistorico, incluirSinteticos]);
+  }, [activeProductContext, contextoHistorico]);
 
   function handleProductoChange(event) {
     const nextProducto = normalizeDemandProductName(event.target.value);
@@ -177,40 +176,24 @@ export default function DemandPage() {
       (item) => item.producto_nombre === nextProducto
     );
     if (nextProdCtx) {
-      const nextMin = incluirSinteticos
-        ? nextProdCtx.fecha_minima_ventas
-        : nextProdCtx.fecha_minima_reales || nextProdCtx.fecha_minima_ventas;
-      const nextMax = incluirSinteticos
-        ? nextProdCtx.fecha_maxima_ventas
-        : nextProdCtx.fecha_maxima_reales || nextProdCtx.fecha_maxima_ventas;
+      const nextMin = nextProdCtx.fecha_minima_ventas;
+      const nextMax = nextProdCtx.fecha_maxima_ventas;
+      const prevMin = activeProductContext?.fecha_minima_ventas;
+      const prevMax = activeProductContext?.fecha_maxima_ventas;
 
       setPeriodoHistorico((current) => ({
         fechaDesde:
-          !current.fechaDesde || (nextMin && current.fechaDesde < nextMin)
+          !current.fechaDesde ||
+          current.fechaDesde === prevMin ||
+          (nextMin && current.fechaDesde < nextMin)
             ? nextMin || current.fechaDesde
             : current.fechaDesde,
         fechaHasta:
-          !current.fechaHasta || (nextMax && current.fechaHasta > nextMax)
+          !current.fechaHasta ||
+          current.fechaHasta === prevMax ||
+          (nextMax && current.fechaHasta > nextMax)
             ? nextMax || current.fechaHasta
             : current.fechaHasta,
-      }));
-    }
-  }
-
-  function handleIncluirSinteticosChange(event) {
-    const checked = event.target.checked;
-    setIncluirSinteticos(checked);
-    setForecastError('');
-    setReportNotice('');
-
-    if (!checked && activeProductContext?.fecha_minima_reales) {
-      const minReal = activeProductContext.fecha_minima_reales;
-      setPeriodoHistorico((current) => ({
-        ...current,
-        fechaDesde:
-          current.fechaDesde && current.fechaDesde < minReal
-            ? minReal
-            : current.fechaDesde,
       }));
     }
   }
@@ -243,9 +226,10 @@ export default function DemandPage() {
         fechaDesde: periodoHistorico.fechaDesde,
         fechaHasta: periodoHistorico.fechaHasta,
         horizonte,
-        incluirSinteticos,
+        incluirSinteticos: true,
       });
       setForecast(response);
+      setContextError('');
     } catch (err) {
       setForecastError(
         err?.message ||
@@ -279,8 +263,7 @@ export default function DemandPage() {
 
   const hasSampleWarning = Boolean(
     forecast &&
-      (metricas?.origen_evaluacion === 'datos_sinteticos_advertencia' ||
-        metricas?.origen_evaluacion === 'muestra_insuficiente' ||
+      (metricas?.origen_evaluacion === 'muestra_insuficiente' ||
         (resumen?.dias_operativos_con_ventas ?? 0) <
           (contextoHistorico?.dias_operativos_recomendados ?? 8))
   );
@@ -331,7 +314,7 @@ export default function DemandPage() {
           </select>
           {activeProductContext && activeProductContext.dias_operativos_totales !== undefined && (
             <small>
-              Unidad base: {activeProductContext.unidad_base} · {activeProductContext.dias_reales ?? 0} jornadas reales y {activeProductContext.dias_sinteticos ?? 0} sintéticas disponibles.
+              Unidad base: {activeProductContext.unidad_base} · {activeProductContext.dias_operativos_totales ?? 0} jornadas operativas en el historial disponible.
             </small>
           )}
         </label>
@@ -415,25 +398,11 @@ export default function DemandPage() {
         </label>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#463f38', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            aria-label="Incluir registros históricos sintéticos"
-            checked={incluirSinteticos}
-            disabled={isEstimating}
-            onChange={handleIncluirSinteticosChange}
-          />
-          <span>
-            Incluir registros históricos sintéticos ({contextoHistorico?.fecha_minima_global || '2024-11-02'} a mayo 2026) además de los datos reales ({contextoHistorico?.fecha_inicio_datos_reales || '2026-06-06'} en adelante)
-          </span>
-        </label>
-        {isLoadingContext && (
-          <small style={{ color: '#6a6661', fontSize: 11 }}>
-            Consultando contexto histórico...
-          </small>
-        )}
-      </div>
+      {isLoadingContext && (
+        <small style={{ color: '#6a6661', fontSize: 11 }}>
+          Consultando contexto histórico...
+        </small>
+      )}
 
       {contextError && (
         <small role="alert" style={{ color: '#a83224', fontSize: 12 }}>
@@ -498,16 +467,43 @@ export default function DemandPage() {
       ) : forecast ? (
         <>
           <div className="demand-result__value">
-            <p>
-              {forecast.producto_nombre === 'Hayaca' ? 'Hayacas' : forecast.producto_nombre} · {forecast.horizonte_etiqueta} ({formatIsoDate(forecast.fecha_inicio_horizonte)} – {formatIsoDate(forecast.fecha_fin_horizonte)})
+            <p className="demand-result__period">
+              {forecast.producto_nombre === 'Hayaca' ? 'Hayacas' : forecast.producto_nombre} · {forecast.horizonte_etiqueta} · Período proyectado: {formatIsoDate(forecast.fecha_inicio_horizonte)} al {formatIsoDate(forecast.fecha_fin_horizonte)}
             </p>
-            <strong>
-              {numberFormatter.format(forecast.demanda_total_estimada)}{' '}
-              {formatUnitPlural(forecast.unidad_base, forecast.demanda_total_estimada)}
-            </strong>
-            <span>
-              Producción total sugerida: <strong>{numberFormatter.format(forecast.produccion_total_sugerida)} {formatUnitPlural(forecast.unidad_base, forecast.produccion_total_sugerida)}</strong> · Sobrantes disponibles aplicados: <strong>{numberFormatter.format(forecast.sobrantes_totales_disponibles)} {formatUnitPlural(forecast.unidad_base, forecast.sobrantes_totales_disponibles)}</strong> · {forecast.total_dias_operativos_proyectados} jornadas operativas proyectadas.
-            </span>
+            <div className="demand-result__main">
+              <strong className="demand-result__main-value">
+                {numberFormatter.format(forecast.demanda_total_estimada)}{' '}
+                {formatUnitPlural(forecast.unidad_base, forecast.demanda_total_estimada)}
+              </strong>
+            </div>
+            <div className="demand-result__summary">
+              <div className="demand-result__summary-item">
+                <span className="demand-result__desc">Producción total sugerida:</span>
+                <strong className="demand-result__val">
+                  {numberFormatter.format(forecast.produccion_total_sugerida)}{' '}
+                  {formatUnitPlural(forecast.unidad_base, forecast.produccion_total_sugerida)}
+                </strong>
+              </div>
+              <span className="demand-result__separator" aria-hidden="true">·</span>
+              <div className="demand-result__summary-item">
+                <span className="demand-result__desc">Sobrantes disponibles aplicados:</span>
+                <strong className="demand-result__val">
+                  {numberFormatter.format(forecast.sobrantes_totales_disponibles)}{' '}
+                  {formatUnitPlural(forecast.unidad_base, forecast.sobrantes_totales_disponibles)}
+                </strong>
+              </div>
+              <span className="demand-result__separator" aria-hidden="true">·</span>
+              <div className="demand-result__summary-item">
+                <strong className="demand-result__val">
+                  {forecast.total_dias_operativos_proyectados}
+                </strong>
+                <span className="demand-result__desc">
+                  {forecast.total_dias_operativos_proyectados === 1
+                    ? 'jornada operativa proyectada.'
+                    : 'jornadas operativas proyectadas.'}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div
@@ -541,9 +537,9 @@ export default function DemandPage() {
               </span>
             </div>
             <div>
-              <strong style={{ display: 'block', color: '#1e1c1a' }}>Procedencia de registros</strong>
+              <strong style={{ display: 'block', color: '#1e1c1a' }}>Jornadas analizadas</strong>
               <span>
-                {resumen?.registros_reales ?? 0} reales · {resumen?.registros_operativos ?? 0} operativos · {resumen?.registros_sinteticos ?? 0} sintéticos ({formatMetricValue(resumen?.proporcion_datos_reales)} % reales/op.)
+                {resumen?.dias_operativos_con_ventas ?? 0} jornadas del historial analizadas
               </span>
             </div>
             <div>
@@ -567,7 +563,7 @@ export default function DemandPage() {
                 lineHeight: 1.5,
               }}
             >
-              <strong>Advertencia metodológica sobre la muestra histórica: </strong>
+              <strong>Advertencia sobre la muestra histórica: </strong>
               {metricas?.nota_metodologica}
             </div>
           )}

@@ -27,11 +27,14 @@ from app.services.colombian_calendar import (
     inspect_operation_date,
     is_valid_operation_date,
 )
+from app.services import demand as demand_service
 from app.services.demand import (
     MIN_HISTORICAL_OPERATION_DAYS,
     _DailyDemandPoint,
     _compute_backtest_metrics,
+    _resolve_horizon_dates,
     generate_demand_forecast,
+    get_colombia_today,
     get_demand_historical_context,
 )
 from app.services.excel_import import build_trace_tag
@@ -215,8 +218,8 @@ def test_historical_context_and_forecast_with_real_mysql_dataset():
         assert res_full.resumen_historico.registros_sinteticos == 191
 
 
-def test_synthetic_only_window_flags_methodological_warning():
-    """Cuando el usuario elige un rango exclusivamente sintético, el modelo advierte que la precisión no es sobre datos reales."""
+def test_synthetic_window_evaluates_normally_without_methodological_penalty():
+    """El modelo evalúa válidamente las observaciones históricas sin penalizar ni advertir como sintéticas."""
     engine = get_engine()
     with Session(engine) as session:
         req = DemandForecastRequest(
@@ -227,11 +230,9 @@ def test_synthetic_only_window_flags_methodological_warning():
             incluir_sinteticos=True,
         )
         res = generate_demand_forecast(session, req)
-        assert res.resumen_historico.registros_reales == 0
         assert res.resumen_historico.registros_sinteticos > 20
-        assert res.metricas_precision.origen_evaluacion == "datos_sinteticos_advertencia"
-        assert res.metricas_precision.nivel_confianza == "baja"
-        assert "ADVERTENCIA METODOLÓGICA" in res.metricas_precision.nota_metodologica
+        assert res.metricas_precision.origen_evaluacion == "datos_reales_y_operativos"
+        assert "ADVERTENCIA METODOLÓGICA" not in res.metricas_precision.nota_metodologica
 
 
 def test_insufficient_historical_days_raises_422_and_small_sample_3_to_7_warns(
@@ -462,7 +463,7 @@ def test_demand_rest_endpoints_post_and_get_integration(
     assert ctx_json["fecha_maxima_global"] == "2026-10-31"
     assert ctx_json["minimo_dias_operativos_requeridos"] == 3
 
-    # 2. Estimación vía POST /prediccion/estimar
+    # 2. Estimación vía POST /prediccion/estimar con referencia viernes 6 de noviembre de 2026
     post_resp = api_client.post(
         "/prediccion/estimar",
         headers=auth_headers,
@@ -471,14 +472,23 @@ def test_demand_rest_endpoints_post_and_get_integration(
             "fecha_desde": "2026-10-10",
             "fecha_hasta": "2026-10-31",
             "horizonte": "Próxima semana",
+            "fecha_referencia": "2026-11-06",
         },
     )
     assert post_resp.status_code == 200, post_resp.text
     post_data = post_resp.json()
     assert post_data["producto_nombre"] == "Hayaca"
     assert post_data["horizonte"] == "proxima_semana"
-    assert post_data["total_dias_operativos_proyectados"] == 3
+    assert post_data["fecha_inicio_horizonte"] == "2026-11-06"
+    assert post_data["fecha_fin_horizonte"] == "2026-11-08"
+    assert post_data["total_dias_operativos_proyectados"] == 2
+    assert [d["fecha"] for d in post_data["planificacion_diaria"]] == [
+        "2026-11-07",
+        "2026-11-08",
+    ]
     assert post_data["sobrantes_totales_disponibles"] == 10
+    assert post_data["planificacion_diaria"][0]["sobrantes_disponibles"] == 10
+    assert post_data["planificacion_diaria"][1]["sobrantes_disponibles"] == 0
     assert (
         post_data["produccion_total_sugerida"]
         == post_data["demanda_total_estimada"] - post_data["sobrantes_totales_disponibles"]
@@ -488,7 +498,8 @@ def test_demand_rest_endpoints_post_and_get_integration(
     # 3. Estimación vía GET /prediccion/estimacion con query params equivalentes
     get_resp = api_client.get(
         "/prediccion/estimacion"
-        "?producto_nombre=Hayacas&fecha_desde=2026-10-10&fecha_hasta=2026-10-31&horizonte=proxima_semana",
+        "?producto_nombre=Hayacas&fecha_desde=2026-10-10&fecha_hasta=2026-10-31"
+        "&horizonte=proxima_semana&fecha_referencia=2026-11-06",
         headers=auth_headers,
     )
     assert get_resp.status_code == 200, get_resp.text
@@ -553,7 +564,8 @@ def test_frontend_demand_integration_and_mysql_historical_integrity():
     assert "proxima_semana" in page_code
     assert "proximo_mes" in page_code
     assert "proximo_trimestre" in page_code
-    assert "incluirSinteticos" in page_code
+    assert "demand-incluir-sinteticos" not in page_code
+    assert "Incluir registros históricos sintéticos" not in page_code
     assert "No disponible" in page_code
 
     # 3. Verificar que los 482 registros históricos en ventas, producciones y cierres_diarios siguen intactos
@@ -578,3 +590,211 @@ def test_frontend_demand_integration_and_mysql_historical_integrity():
     assert ventas_hist == 482
     assert prod_hist == 482
     assert cierres_hist == 482
+
+
+def test_proxima_semana_reference_friday_nov_6_2026_and_colombia_timezone(
+    monkeypatch,
+):
+    """Verifica el cálculo del horizonte «Próxima semana» tomando el viernes 6 de noviembre de 2026 y la zona horaria de Colombia."""
+    # 1. Rango calendario exacto para viernes 6 de noviembre de 2026: 6, 7 y 8 de noviembre de 2026
+    inicio, fin = _resolve_horizon_dates(date(2026, 11, 6), "proxima_semana")
+    assert inicio == date(2026, 11, 6)
+    assert fin == date(2026, 11, 8)
+
+    # 2. Si el viernes es festivo nacional (p. ej. 7 de agosto de 2026, Batalla de Boyacá), se proyectan los 3 días
+    inicio_fest, fin_fest = _resolve_horizon_dates(
+        date(2026, 8, 7), "proxima_semana"
+    )
+    assert (inicio_fest, fin_fest) == (date(2026, 8, 7), date(2026, 8, 9))
+
+    # 3. Al omitir fecha_referencia, usa la fecha local de Colombia (get_colombia_today) y jamás proyecta semanas pasadas
+    assert isinstance(get_colombia_today(), date)
+    monkeypatch.setattr(
+        demand_service, "get_colombia_today", lambda: date(2026, 11, 6)
+    )
+
+    engine = get_engine()
+    with Session(engine) as session:
+        req = DemandForecastRequest(
+            producto_nombre="Hayaca",
+            fecha_desde=date(2024, 11, 2),
+            fecha_hasta=date(2026, 10, 31),
+            horizonte="proxima_semana",
+        )
+        res = generate_demand_forecast(session, req)
+        assert res.fecha_inicio_horizonte == date(2026, 11, 6)
+        assert res.fecha_fin_horizonte == date(2026, 11, 8)
+        projected_dates = [d.fecha for d in res.planificacion_diaria]
+        assert projected_dates == [date(2026, 11, 7), date(2026, 11, 8)]
+        assert date(2026, 11, 1) not in projected_dates
+        assert date(2026, 11, 2) not in projected_dates
+        assert all(d >= date(2026, 11, 6) for d in projected_dates)
+
+        # Incluso si el usuario consulta un subrango histórico antiguo (ej. hasta 2025-06-30),
+        # el horizonte sigue proyectando desde la fecha local de Colombia (2026-11-06), nunca fechas históricas
+        req_sub = DemandForecastRequest(
+            producto_nombre="Lechona",
+            fecha_desde=date(2025, 1, 1),
+            fecha_hasta=date(2025, 6, 30),
+            horizonte="proxima_semana",
+        )
+        res_sub = generate_demand_forecast(session, req_sub)
+        assert res_sub.fecha_inicio_horizonte == date(2026, 11, 6)
+        assert res_sub.fecha_fin_horizonte == date(2026, 11, 8)
+        assert [d.fecha for d in res_sub.planificacion_diaria] == [
+            date(2026, 11, 7),
+            date(2026, 11, 8),
+        ]
+
+        # Viernes festivo nacional (7 de agosto de 2026): contempla y proyecta viernes, sábado y domingo
+        req_aug = DemandForecastRequest(
+            producto_nombre="Hayaca",
+            fecha_desde=date(2024, 11, 2),
+            fecha_hasta=date(2026, 8, 2),
+            horizonte="proxima_semana",
+            fecha_referencia=date(2026, 8, 7),
+        )
+        res_aug = generate_demand_forecast(session, req_aug)
+        assert res_aug.fecha_inicio_horizonte == date(2026, 8, 7)
+        assert res_aug.fecha_fin_horizonte == date(2026, 8, 9)
+        assert [d.fecha for d in res_aug.planificacion_diaria] == [
+            date(2026, 8, 7),
+            date(2026, 8, 8),
+            date(2026, 8, 9),
+        ]
+
+
+def test_anti_leakage_excludes_historical_sales_on_or_after_horizon_start(
+    isolated_session: Session,
+):
+    """Verifica que los registros en o después de fecha_inicio_horizonte se excluyan del entrenamiento histórico."""
+    hayaca = isolated_session.scalar(
+        select(Producto).where(Producto.nombre == "Hayaca")
+    )
+    assert hayaca is not None
+    pres = isolated_session.scalar(
+        select(Presentacion).where(Presentacion.producto_id == hayaca.id)
+    )
+    assert pres is not None
+
+    # Insertar 5 jornadas previas al 6 de noviembre y 2 jornadas dentro del horizonte (7 y 8 de noviembre)
+    rows = [
+        (date(2026, 10, 17), 150, 8),
+        (date(2026, 10, 18), 155, 6),
+        (date(2026, 10, 24), 152, 7),
+        (date(2026, 10, 25), 158, 5),
+        (date(2026, 10, 31), 160, 9),
+        (date(2026, 11, 7), 999, 99),  # No debe filtrarse al cálculo histórico
+        (date(2026, 11, 8), 999, 99),  # No debe filtrarse al cálculo histórico
+    ]
+    for d_op, qty, sob in rows:
+        v = Venta(
+            fecha_venta=datetime.combine(d_op, datetime.min.time()).replace(
+                hour=12
+            ),
+            estado="concretada",
+            observaciones="Prueba antifiltración",
+        )
+        isolated_session.add(v)
+        isolated_session.flush()
+        isolated_session.add(
+            DetalleVenta(
+                venta_id=v.id,
+                presentacion_id=pres.id,
+                cantidad=Decimal(str(qty)),
+                precio_unitario=Decimal("10000"),
+                factor_conversion_snapshot=Decimal("1"),
+            )
+        )
+        isolated_session.add(
+            CierreDiario(
+                producto_id=hayaca.id,
+                fecha=d_op,
+                existencia_calculada_base=Decimal(str(sob)),
+                sobrante_real_base=Decimal(str(sob)),
+                observaciones="Cierre antifiltración",
+            )
+        )
+    isolated_session.commit()
+
+    req = DemandForecastRequest(
+        producto_id=hayaca.id,
+        fecha_desde=date(2026, 10, 17),
+        fecha_hasta=date(2026, 11, 8),
+        horizonte="proxima_semana",
+        fecha_referencia=date(2026, 11, 6),
+    )
+    res = generate_demand_forecast(isolated_session, req)
+    assert res.resumen_historico.fecha_hasta == date(2026, 11, 5)
+    assert res.resumen_historico.fecha_maxima_observada == date(2026, 10, 31)
+    assert res.resumen_historico.dias_operativos_con_ventas == 5
+    assert res.resumen_historico.fecha_ultimo_cierre == date(2026, 10, 31)
+    assert res.sobrantes_totales_disponibles == 9
+    assert all(d.demanda_estimada < 300 for d in res.planificacion_diaria)
+
+    # Si fecha_desde >= fecha_inicio_horizonte, rechaza con 422
+    req_future_start = DemandForecastRequest(
+        producto_id=hayaca.id,
+        fecha_desde=date(2026, 11, 6),
+        fecha_hasta=date(2026, 11, 8),
+        horizonte="proxima_semana",
+        fecha_referencia=date(2026, 11, 6),
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        generate_demand_forecast(isolated_session, req_future_start)
+    assert exc_info.value.status_code == 422
+
+
+def test_statistical_variability_and_sobrantes_single_deduction_real_mysql():
+    """Verifica con el histórico completo de MySQL la diferenciación real por producto/mes/tipo de día y el descuento único de sobrantes."""
+    engine = get_engine()
+    with Session(engine) as session:
+        req_h_q = DemandForecastRequest(
+            producto_nombre="Hayaca",
+            fecha_desde=date(2024, 11, 2),
+            fecha_hasta=date(2026, 10, 31),
+            horizonte="proximo_trimestre",
+            fecha_referencia=date(2026, 11, 6),
+        )
+        req_l_q = DemandForecastRequest(
+            producto_nombre="Lechona",
+            fecha_desde=date(2024, 11, 2),
+            fecha_hasta=date(2026, 10, 31),
+            horizonte="proximo_trimestre",
+            fecha_referencia=date(2026, 11, 6),
+        )
+        res_h = generate_demand_forecast(session, req_h_q)
+        res_l = generate_demand_forecast(session, req_l_q)
+
+        # Utiliza todas las 240 jornadas operativas válidas por producto (49 reales + 191 antes sintéticas)
+        assert res_h.resumen_historico.dias_operativos_con_ventas == 240
+        assert res_l.resumen_historico.dias_operativos_con_ventas == 240
+
+        # Las estimaciones trimestrales responden a diferencias reales entre tipos de día y meses (no constantes)
+        distinct_h = {d.demanda_estimada for d in res_h.planificacion_diaria}
+        distinct_l = {d.demanda_estimada for d in res_l.planificacion_diaria}
+        assert len(distinct_h) >= 4
+        assert len(distinct_l) >= 4
+
+        # Sobrantes aplicados una sola vez y distinción estricta entre demanda_estimada y produccion_sugerida
+        for res in (res_h, res_l):
+            assert res.sobrantes_totales_disponibles == int(
+                res.resumen_historico.ultimo_sobrante_registrado_base
+            )
+            assert (
+                res.planificacion_diaria[0].sobrantes_disponibles
+                == res.sobrantes_totales_disponibles
+            )
+            assert all(
+                d.sobrantes_disponibles == 0
+                for d in res.planificacion_diaria[1:]
+            )
+            assert (
+                res.planificacion_diaria[0].produccion_sugerida
+                < res.planificacion_diaria[0].demanda_estimada
+            )
+            for d in res.planificacion_diaria:
+                assert d.produccion_sugerida == max(
+                    0, d.demanda_estimada - d.sobrantes_disponibles
+                )
+

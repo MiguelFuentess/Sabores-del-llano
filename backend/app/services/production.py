@@ -211,15 +211,6 @@ def _sync_cierre_diario_for_date(
             CierreDiario.fecha == fecha_jornada,
         )
     )
-    if cierre is not None:
-        es_hist_cierre, _, _ = classify_trace_origin(cierre.observaciones)
-        if es_hist_cierre:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"La jornada del {fecha_jornada.isoformat()} ya cuenta con un cierre histórico importado que no puede modificarse."
-                ),
-            )
 
     total_producido = _compute_daily_produced_base(
         session, producto_id, fecha_jornada
@@ -534,12 +525,6 @@ def update_produccion(
     commit: bool = True,
 ) -> ProduccionResponse:
     produccion = get_produccion_model_or_404(session, produccion_id)
-    es_historico, _, _ = classify_trace_origin(produccion.observaciones)
-    if es_historico:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se permite modificar ni recalcular registros históricos de producción.",
-        )
 
     old_date = produccion.fecha_produccion.date()
     updates = payload.model_dump(exclude_unset=True)
@@ -617,12 +602,6 @@ def delete_produccion(
     commit: bool = True,
 ) -> None:
     produccion = get_produccion_model_or_404(session, produccion_id)
-    es_historico, _, _ = classify_trace_origin(produccion.observaciones)
-    if es_historico:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se permite eliminar registros históricos de producción.",
-        )
 
     producto_id = produccion.producto_id
     fecha_jornada = produccion.fecha_produccion.date()

@@ -29,7 +29,9 @@
 .public-nav { display: flex; align-items: center; justify-content: center; gap: 24px; }
 .public-nav a { color: #efeece; font-size: 13px; font-weight: 600; text-decoration: none; transition: color .15s ease; white-space: nowrap; }
 .public-nav a:hover, .public-nav a.public-nav__active { color: #fafaed; font-weight: 700; }
-.public-contact-display { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; color: #fff; background: var(--public-button-green); font: 700 12px/1.2 'Plus Jakarta Sans', sans-serif; text-align: center; }
+.public-contact-display { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; color: #fff; background: var(--public-button-green); font: 700 12px/1.2 'Plus Jakarta Sans', sans-serif; text-align: center; text-decoration: none; cursor: pointer; transition: transform .15s ease, filter .15s ease, box-shadow .15s ease; }
+.public-contact-display:hover { filter: brightness(1.08); transform: translateY(-1px); color: #fff; text-decoration: none; }
+.public-contact-display:active { transform: translateY(0); }
 .public-header__contact { min-height: 40px; padding: 0 16px; border-radius: 10px; background: var(--public-red); box-shadow: 0 4px 9px rgba(44,29,24,.16); white-space: nowrap; }
 .public-header__contact .public-icon { font-size: 15px; }
 
@@ -133,9 +135,10 @@
 .public-delivery__options article:nth-child(2) h3 { color: var(--public-green); }
 .public-delivery__options p { margin: 0; color: #66544d; font-size: 14px; line-height: 1.4; }
 .public-delivery__map-title { margin: 0 auto 12px; color: #47372e; font: 700 14px/1.4 Merriweather, Georgia, serif; text-align: center; }
-.public-coverage-map { position: relative; width: min(100%, 900px); height: 230px; display: flex; align-items: flex-end; justify-content: center; margin: 0 auto; padding: 13px; border: 5px solid #fff; border-radius: 15px; background-position: center; background-size: cover; box-shadow: 0 2px 7px rgba(44,29,24,.11); }
-.public-coverage-map > span { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; color: #684d3e; background: rgba(255,248,246,.94); box-shadow: 0 2px 7px rgba(44,29,24,.16); font-size: 10px; font-weight: 600; text-align: center; }
-.public-coverage-map .public-icon { color: var(--public-red); font-size: 14px; }
+.public-coverage-map { position: relative; width: min(100%, 900px); height: 320px; display: flex; margin: 0 auto; border: 5px solid #fff; border-radius: 15px; overflow: hidden; box-shadow: 0 2px 7px rgba(44,29,24,.11); }
+.public-coverage-map__canvas { width: 100%; height: 100%; z-index: 1; }
+.public-coverage-map__badge { position: absolute; top: 12px; right: 12px; z-index: 1000; display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; color: #684d3e; background: rgba(255,248,246,.95); box-shadow: 0 2px 7px rgba(44,29,24,.16); font-size: 10px; font-weight: 600; text-align: center; pointer-events: none; }
+.public-coverage-map__badge .public-icon { color: var(--public-red); font-size: 14px; }
 
 .public-final-cta { display: flex; flex-direction: column; align-items: center; padding: 36px 24px 31px; color: var(--public-bg); background: var(--public-green); text-align: center; }
 .public-final-cta > span { margin-bottom: 8px; color: #efeece; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
@@ -189,7 +192,7 @@
   .public-planner-card { flex-direction: column; gap: 25px; padding: 27px; }
   .public-planner__form, .public-recommendation { width: 100%; }
   .public-delivery { padding: 63px 20px 72px; }
-  .public-coverage-map { height: 200px; }
+  .public-coverage-map { height: 260px; }
 }
 @media (max-width: 480px) {
   .public-header { padding-inline: 14px; }
@@ -237,8 +240,8 @@
   .public-delivery__options { grid-template-columns: 1fr; }
   .public-delivery__options article { min-height: auto; padding: 15px; }
   .public-delivery__options h3 { font-size: 13px; }
-  .public-coverage-map { height: 170px; padding: 8px; }
-  .public-coverage-map > span { font-size: 8px; }
+  .public-coverage-map { height: 230px; }
+  .public-coverage-map__badge { top: 8px; right: 8px; font-size: 8px; padding: 5px 9px; }
   .public-final-cta { padding: 31px 17px; }
   .public-final-cta h2 { font-size: 19px; }
   .public-footer { padding: 27px 17px 15px; }

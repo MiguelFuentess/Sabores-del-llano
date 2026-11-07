@@ -31,12 +31,16 @@ export function normalizeDemandHorizon(value) {
 }
 
 function classifyDemandApiError(error) {
+  if (error?.name === 'AbortError') {
+    return error;
+  }
   const status = Number(error?.status || 0);
   const message = String(
     error?.message || 'No fue posible procesar la solicitud de predicción de demanda.'
   );
 
   const enriched = new Error(message);
+  enriched.name = error?.name || 'DemandApiError';
   enriched.status = status;
 
   if (status === 401 || status === 403) {

@@ -319,7 +319,7 @@ def test_update_and_delete_operational_production_syncs_movements_and_closures(
     )
 
 
-def test_historical_production_and_closures_are_protected_with_409(
+def test_historical_production_allows_edit_and_delete_with_sync(
     api_client,
     auth_headers: dict[str, str],
     isolated_session: Session,
@@ -350,37 +350,20 @@ def test_historical_production_and_closures_are_protected_with_409(
     isolated_session.add_all([hist_prod, hist_cierre])
     isolated_session.commit()
 
-    # No debe permitir editar ni eliminar producción histórica
-    assert (
-        api_client.patch(
-            f"/producciones/{hist_prod.id}",
-            headers=auth_headers,
-            json={"sobrante_real_base": 4},
-        ).status_code
-        == 409
+    # Debe permitir editar y eliminar producción histórica manteniendo sincronización
+    patch_hist_resp = api_client.patch(
+        f"/producciones/{hist_prod.id}",
+        headers=auth_headers,
+        json={"sobrante_real_base": 4},
     )
-    assert (
-        api_client.delete(
-            f"/producciones/{hist_prod.id}",
-            headers=auth_headers,
-        ).status_code
-        == 409
-    )
+    assert patch_hist_resp.status_code == 200
+    assert float(patch_hist_resp.json()["sobrante_real_base"]) == 4.0
 
-    # Tampoco debe permitir sobrescribir una jornada con cierre histórico importado
-    assert (
-        api_client.post(
-            "/producciones",
-            headers=auth_headers,
-            json={
-                "producto_nombre": "Hayaca",
-                "fecha_produccion": "2026-10-25T14:00:00",
-                "cantidad_producida_base": 30,
-                "sobrante_real_base": 2,
-            },
-        ).status_code
-        == 409
+    del_hist_resp = api_client.delete(
+        f"/producciones/{hist_prod.id}",
+        headers=auth_headers,
     )
+    assert del_hist_resp.status_code == 204
 
 
 def test_list_producciones_filters_by_product_date_and_origin(
@@ -685,8 +668,7 @@ def test_production_edit_and_delete_actions_and_history_protection(
     assert "onEdit=" in page_code
     assert "onDelete=" in page_code
     assert "Acciones" in page_code
-    assert "Solo lectura" in page_code
-    assert "status-badge" in page_code
+    assert "Solo lectura" not in page_code
     assert "EditIcon" in page_code
     assert "TrashIcon" in page_code
 
@@ -777,20 +759,20 @@ def test_production_edit_and_delete_actions_and_history_protection(
     isolated_session.add(hist_prod)
     isolated_session.commit()
 
-    bad_hist_patch = api_client.patch(
+    # Histórico permite editar y eliminar
+    good_hist_patch = api_client.patch(
         f"/producciones/{hist_prod.id}",
         headers=auth_headers,
-        json={"cantidad_producida_base": 999},
+        json={"cantidad_producida_base": 95},
     )
-    assert bad_hist_patch.status_code == 409
-    assert "históricos" in bad_hist_patch.json()["detail"]
+    assert good_hist_patch.status_code == 200
+    assert float(good_hist_patch.json()["cantidad_producida_base"]) == 95.0
 
-    bad_hist_del = api_client.delete(
+    good_hist_del = api_client.delete(
         f"/producciones/{hist_prod.id}",
         headers=auth_headers,
     )
-    assert bad_hist_del.status_code == 409
-    assert "históricos" in bad_hist_del.json()["detail"]
+    assert good_hist_del.status_code == 204
 
     # Eliminar registro operativo
     del_resp = api_client.delete(

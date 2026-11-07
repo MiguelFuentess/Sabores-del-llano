@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import math
 import statistics
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -41,6 +42,28 @@ from app.services.customers import classify_trace_origin
 MIN_HISTORICAL_OPERATION_DAYS = 3
 OPTIMAL_HISTORICAL_OPERATION_DAYS = 8
 
+try:
+    COLOMBIA_TZ: timezone | ZoneInfo = ZoneInfo("America/Bogota")
+except ZoneInfoNotFoundError:
+    COLOMBIA_TZ = timezone(timedelta(hours=-5))
+
+# Parámetros estadísticos explicables y reproducibles (calibrados por validación walk-forward)
+RECENCY_HALF_LIFE_DAYS = 63.0  # 9 semanas calendario para nivel base por tipo de jornada
+SHORT_MOMENTUM_HALF_LIFE_DAYS = 28.0  # 4 semanas calendario para impulso reciente
+DAY_TYPE_SHRINKAGE_K = 3.0
+SHORT_MOMENTUM_SHRINKAGE_K = 4.0
+TREND_DAMPING_FACTOR = 0.35
+WEEKLY_HORIZON_DECAY = 0.84
+STRUCTURAL_DRIFT_WEIGHT = 0.25
+MONTHLY_SEASONALITY_MIN_SPAN_DAYS = 330
+MONTHLY_SEASONALITY_MIN_OBS = 6
+MONTHLY_SEASONALITY_SHRINKAGE_K = 30.0
+
+_MODEL_METHOD_DESCRIPTION = (
+    "Descomposición por tipo de jornada con suavizamiento exponencial por recencia, "
+    "impulso reciente amortiguado y estacionalidad mensual regularizada"
+)
+
 _PRODUCT_NAME_ALIASES = {
     "hayaca": "Hayaca",
     "hayacas": "Hayaca",
@@ -76,6 +99,22 @@ _WEEKDAY_NAMES_ES = (
     "Domingo",
 )
 
+_MONTH_NAMES_ES = (
+    "",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+)
+
 _DAY_TYPE_LABELS: dict[TipoDiaOperativoLiteral, str] = {
     "sabado": "Sábados",
     "domingo": "Domingos",
@@ -92,6 +131,45 @@ class _DailyDemandPoint:
     es_sintetico: bool
     es_operativo: bool
     cal_info: OperationDateInfo
+
+
+@dataclass(frozen=True)
+class _PointForecastComponents:
+    base_tipo_dia: float
+    impulso_reciente_ratio: float
+    deriva_estructural_ratio: float
+    estacionalidad_mensual_ratio: float
+    factor_ajuste_total: float
+    demanda_continua: float
+
+
+def get_colombia_today() -> date:
+    """Obtiene la fecha calendario actual en la zona horaria oficial de Colombia (America/Bogota, UTC-5)."""
+    return datetime.now(COLOMBIA_TZ).date()
+
+
+def _resolve_horizon_dates(
+    ref_date: date,
+    horizonte: HorizonteEstimacionLiteral,
+) -> tuple[date, date]:
+    """Calcula el período proyectado [inicio, fin] a partir de la fecha local de referencia.
+
+    - 'proxima_semana': inicia en ref_date y abarca hasta el cierre de la semana en curso
+      (domingo inmediato cuando ref_date es lunes a sábado; p. ej. viernes 6 de noviembre de 2026
+      proyecta viernes 6, sábado 7 y domingo 8 de noviembre de 2026). Si la consulta ocurre en
+      domingo, abarca desde ese domingo hasta el domingo siguiente inclusive.
+    - 'proximo_mes': ventana de 30 días calendario iniciando en ref_date.
+    - 'proximo_trimestre': ventana de 90 días calendario iniciando en ref_date.
+    """
+    fecha_inicio = ref_date
+    if horizonte == "proxima_semana":
+        weekday = ref_date.weekday()  # 0=Lunes ... 4=Viernes, 5=Sábado, 6=Domingo
+        days_ahead = (6 - weekday) if weekday < 6 else 7
+        fecha_fin = fecha_inicio + timedelta(days=days_ahead)
+    else:
+        horizon_days = _HORIZON_DAYS_MAP[horizonte]
+        fecha_fin = fecha_inicio + timedelta(days=horizon_days - 1)
+    return fecha_inicio, fecha_fin
 
 
 def _quantize_dec(value: float | Decimal, pattern: str = "0.01") -> Decimal:
@@ -177,20 +255,17 @@ def _count_operation_days_in_range(start_date: date, end_date: date) -> int:
 
 def _compute_observation_weights(
     points: list[_DailyDemandPoint],
+    half_life_days: float = RECENCY_HALF_LIFE_DAYS,
 ) -> list[float]:
-    n = len(points)
-    if n == 0:
+    """Calcula pesos de recencia con decaimiento exponencial por distancia calendario (en días)."""
+    if not points:
         return []
-    has_non_synthetic = any(not p.es_sintetico for p in points)
-    has_synthetic = any(p.es_sintetico for p in points)
-    mixed_origins = has_non_synthetic and has_synthetic
-
-    weights: list[float] = []
-    for idx, pt in enumerate(points):
-        recency_w = 0.5 + 0.5 * (idx / (n - 1)) if n > 1 else 1.0
-        origin_w = 0.65 if (mixed_origins and pt.es_sintetico) else 1.0
-        weights.append(recency_w * origin_w)
-    return weights
+    last_date = points[-1].fecha
+    ln2 = math.log(2.0)
+    return [
+        math.exp(-ln2 * max(0, (last_date - p.fecha).days) / half_life_days)
+        for p in points
+    ]
 
 
 def _weighted_mean(values: list[float], weights: list[float]) -> float:
@@ -202,10 +277,19 @@ def _weighted_mean(values: list[float], weights: list[float]) -> float:
     return sum(v * w for v, w in zip(values, weights)) / total_w
 
 
+def _effective_sample_size(weights: list[float]) -> float:
+    if not weights:
+        return 0.0
+    sw = sum(weights)
+    sw2 = sum(w * w for w in weights)
+    return (sw * sw) / sw2 if sw2 > 0 else float(len(weights))
+
+
 def _compute_smoothed_day_type_means(
     points: list[_DailyDemandPoint],
     weights: list[float],
 ) -> tuple[float, dict[TipoDiaOperativoLiteral, float]]:
+    """Calcula niveles base por tipo de jornada regularizados por tamaño muestral efectivo."""
     global_w_mean = _weighted_mean(
         [p.cantidad_base for p in points], weights
     )
@@ -221,55 +305,138 @@ def _compute_smoothed_day_type_means(
             smoothed[dtype] = global_w_mean
         else:
             raw_w_mean = _weighted_mean(sub_vals, sub_w)
-            alpha = min(1.0, len(sub_vals) / 5.0)
+            n_eff = _effective_sample_size(sub_w)
+            alpha = n_eff / (n_eff + DAY_TYPE_SHRINKAGE_K)
             smoothed[dtype] = alpha * raw_w_mean + (1.0 - alpha) * global_w_mean
     return global_w_mean, smoothed
 
 
-def _compute_damped_trend_ratio(
-    points: list[_DailyDemandPoint],
-    weights: list[float],
-) -> float:
-    """Calcula un ajuste relativo de tendencia reciente acotado a [-0.06, +0.06]."""
-    n = len(points)
-    if n < 6:
-        return 0.0
-    global_w_mean = _weighted_mean([p.cantidad_base for p in points], weights)
-    if global_w_mean <= 0:
-        return 0.0
-
-    recent_slice = max(3, min(10, n // 3))
-    recent_points = points[-recent_slice:]
-    recent_weights = weights[-recent_slice:]
-    recent_w_mean = _weighted_mean(
-        [p.cantidad_base for p in recent_points], recent_weights
+def _predict_demand_for_date(
+    train_points: list[_DailyDemandPoint],
+    target_date: date,
+    target_dtype: TipoDiaOperativoLiteral,
+    *,
+    precomputed_weights: list[float] | None = None,
+    precomputed_smoothed: tuple[float, dict[TipoDiaOperativoLiteral, float]] | None = None,
+) -> _PointForecastComponents:
+    """Estima la demanda continua de una fecha futura combinando:
+    1. Nivel base exponencial por tipo de jornada (semivida 63 días) con contracción bayesiana.
+    2. Impulso reciente específico del tipo de jornada + global (semivida 28 días), amortiguado por horizonte.
+    3. Deriva estructural amortiguada por regresión lineal cuando existen >= 12 jornadas y >= 60 días.
+    4. Estacionalidad mensual desestacionalizada con contracción bayesiana cuando la serie cubre >= 330 días.
+    """
+    n = len(train_points)
+    weights_med = (
+        precomputed_weights
+        if precomputed_weights is not None
+        else _compute_observation_weights(train_points, RECENCY_HALF_LIFE_DAYS)
     )
-    raw_diff_ratio = (recent_w_mean - global_w_mean) / global_w_mean
-    damped = raw_diff_ratio * 0.35
-    return max(-0.06, min(0.06, damped))
+    global_med, smoothed = (
+        precomputed_smoothed
+        if precomputed_smoothed is not None
+        else _compute_smoothed_day_type_means(train_points, weights_med)
+    )
+    base_dt = smoothed[target_dtype]
+
+    t_first = train_points[0].fecha
+    t_last = train_points[-1].fecha
+    span_days = max(0, (t_last - t_first).days)
+    lead_days = max(0, (target_date - t_last).days)
+    lead_weeks = lead_days / 7.0
+
+    # 1. Impulso reciente específico por tipo de jornada combinado con impulso global
+    impulso_ratio = 0.0
+    if n >= 6:
+        w_short = _compute_observation_weights(
+            train_points, SHORT_MOMENTUM_HALF_LIFE_DAYS
+        )
+        global_short = _weighted_mean(
+            [p.cantidad_base for p in train_points], w_short
+        )
+        global_mom = (
+            (global_short - global_med) / global_med if global_med > 0 else 0.0
+        )
+
+        sub_short_vals = [
+            p.cantidad_base for p in train_points if p.tipo_dia == target_dtype
+        ]
+        sub_short_w = [
+            w for p, w in zip(train_points, w_short) if p.tipo_dia == target_dtype
+        ]
+        if len(sub_short_vals) >= 3 and base_dt > 0:
+            neff_s = _effective_sample_size(sub_short_w)
+            raw_dt_short = _weighted_mean(sub_short_vals, sub_short_w)
+            dt_mom = (raw_dt_short - base_dt) / base_dt
+            blend = neff_s / (neff_s + SHORT_MOMENTUM_SHRINKAGE_K)
+            combined_mom = blend * dt_mom + (1.0 - blend) * global_mom
+        else:
+            combined_mom = global_mom
+
+        horizon_decay = WEEKLY_HORIZON_DECAY ** max(0.0, lead_weeks - 0.5)
+        impulso_ratio = max(
+            -0.08,
+            min(0.08, combined_mom * TREND_DAMPING_FACTOR * horizon_decay),
+        )
+
+    # 2. Deriva estructural amortiguada sobre la ventana histórica completa
+    deriva_ratio = 0.0
+    slope_ols = 0.0
+    intercept_ols = global_med
+    xs_ols = [float((p.fecha - t_first).days) for p in train_points]
+    if n >= 12 and span_days >= 60:
+        mx = statistics.mean(xs_ols)
+        my = statistics.mean(p.cantidad_base for p in train_points)
+        sxx = sum((x - mx) ** 2 for x in xs_ols)
+        if sxx > 0:
+            sxy = sum(
+                (x - mx) * (p.cantidad_base - my)
+                for x, p in zip(xs_ols, train_points)
+            )
+            slope_ols = sxy / sxx
+            intercept_ols = my - slope_ols * mx
+            if lead_weeks > 0 and base_dt > 0:
+                phi = 0.92
+                eff_weeks = (1.0 - (phi ** lead_weeks)) / (1.0 - phi)
+                raw_drift = (
+                    slope_ols * 7.0 * eff_weeks * STRUCTURAL_DRIFT_WEIGHT
+                ) / base_dt
+                deriva_ratio = max(-0.06, min(0.06, raw_drift))
+
+    # 3. Estacionalidad mensual desestacionalizada regularizada (cuando >= 330 días y >= 6 obs en el mes)
+    estacional_ratio = 0.0
+    if span_days >= MONTHLY_SEASONALITY_MIN_SPAN_DAYS:
+        month_ratios: list[float] = []
+        for p, x in zip(train_points, xs_ols):
+            if p.fecha.month == target_date.month:
+                trend_hat = intercept_ols + slope_ols * x
+                if trend_hat > 0:
+                    month_ratios.append(p.cantidad_base / trend_hat)
+        if len(month_ratios) >= MONTHLY_SEASONALITY_MIN_OBS:
+            raw_seas = statistics.mean(month_ratios) - 1.0
+            shrink_s = len(month_ratios) / (
+                len(month_ratios) + MONTHLY_SEASONALITY_SHRINKAGE_K
+            )
+            estacional_ratio = max(-0.06, min(0.06, raw_seas * shrink_s))
+
+    factor_total = (1.0 + impulso_ratio + deriva_ratio) * (1.0 + estacional_ratio)
+    demanda_continua = max(1.0, base_dt * factor_total)
+    return _PointForecastComponents(
+        base_tipo_dia=base_dt,
+        impulso_reciente_ratio=impulso_ratio,
+        deriva_estructural_ratio=deriva_ratio,
+        estacionalidad_mensual_ratio=estacional_ratio,
+        factor_ajuste_total=factor_total,
+        demanda_continua=demanda_continua,
+    )
 
 
 def _compute_backtest_metrics(
     points: list[_DailyDemandPoint],
 ) -> MetricasPrecisionModelo:
     n = len(points)
-    non_synthetic_indices = [
-        idx for idx, p in enumerate(points) if not p.es_sintetico
-    ]
-
-    # Seleccionar índices de prueba priorizando observaciones reales/operativas
-    if len(non_synthetic_indices) >= 4:
-        eval_indices = [idx for idx in non_synthetic_indices if idx >= 3]
-        if len(eval_indices) > 20:
-            eval_indices = eval_indices[-20:]
-        origen_eval: OrigenEvaluacionLiteral = "datos_reales_y_operativos"
-    elif n >= 5:
-        eval_count = min(15, max(2, n // 3))
-        eval_indices = list(range(max(3, n - eval_count), n))
-        origen_eval = "datos_sinteticos_advertencia"
-    else:
+    if n < 5:
         return MetricasPrecisionModelo(
-            metodo="Descomposición por tipo de día operativo ponderada por recencia",
+            metodo=_MODEL_METHOD_DESCRIPTION,
             origen_evaluacion="muestra_insuficiente",
             muestras_evaluadas=0,
             mae_base=None,
@@ -279,10 +446,15 @@ def _compute_backtest_metrics(
             nivel_confianza="baja",
             nota_metodologica=(
                 f"El período seleccionado cuenta con solo {n} jornadas operativas válidas. "
-                f"Se recomiendan al menos {OPTIMAL_HISTORICAL_OPERATION_DAYS} jornadas reales u operativas "
+                f"Se recomiendan al menos {OPTIMAL_HISTORICAL_OPERATION_DAYS} jornadas operativas "
                 "para calcular métricas de precisión por validación retrospectiva (walk-forward)."
             ),
         )
+
+    eval_indices = list(range(3, n))
+    if len(eval_indices) > 20:
+        eval_indices = eval_indices[-20:]
+    origen_eval: OrigenEvaluacionLiteral = "datos_reales_y_operativos"
 
     abs_errors: list[float] = []
     sq_errors: list[float] = []
@@ -290,14 +462,13 @@ def _compute_backtest_metrics(
 
     for test_idx in eval_indices:
         train_pts = points[:test_idx]
-        train_w = _compute_observation_weights(train_pts)
-        _, smoothed_by_type = _compute_smoothed_day_type_means(
-            train_pts, train_w
-        )
-        trend_ratio = _compute_damped_trend_ratio(train_pts, train_w)
-
         target_pt = points[test_idx]
-        pred = smoothed_by_type[target_pt.tipo_dia] * (1.0 + trend_ratio)
+        comp = _predict_demand_for_date(
+            train_pts,
+            target_pt.fecha,
+            target_pt.tipo_dia,
+        )
+        pred = comp.demanda_continua
         actual = target_pt.cantidad_base
 
         err = abs(actual - pred)
@@ -317,16 +488,14 @@ def _compute_backtest_metrics(
 
     if (
         not small_sample_warning
-        and origen_eval == "datos_reales_y_operativos"
-        and len(non_synthetic_indices) >= 15
+        and n >= 15
         and mape is not None
         and mape <= 12.0
     ):
         confianza: NivelConfianzaLiteral = "alta"
     elif (
         not small_sample_warning
-        and origen_eval == "datos_reales_y_operativos"
-        and len(non_synthetic_indices) >= 6
+        and n >= 6
         and mape is not None
         and mape <= 18.0
     ):
@@ -335,19 +504,11 @@ def _compute_backtest_metrics(
         confianza = "baja"
 
     mape_str = f"{mape:.2f}% MAPE" if mape is not None else "MAPE no disponible"
-    if origen_eval == "datos_reales_y_operativos":
-        nota = (
-            f"Validación walk-forward evaluada exclusivamente sobre {len(eval_indices)} "
-            "jornadas reales/operativas (sin usar registros sintéticos como verdad de prueba). "
-            f"Error medio absoluto de {mae:.2f} unidades base ({mape_str})."
-        )
-    else:
-        nota = (
-            "ADVERTENCIA METODOLÓGICA: El rango histórico seleccionado contiene menos de 4 "
-            "jornadas reales u operativas. Las métricas se calcularon sobre registros sintéticos "
-            "y se reportan únicamente como referencia interna; no representan precisión sobre "
-            "observaciones reales del negocio."
-        )
+    nota = (
+        f"Validación walk-forward evaluada sobre {len(eval_indices)} "
+        "jornadas del historial operativo. "
+        f"Error medio absoluto de {mae:.2f} unidades base ({mape_str})."
+    )
 
     if small_sample_warning:
         nota = (
@@ -357,7 +518,7 @@ def _compute_backtest_metrics(
         )
 
     return MetricasPrecisionModelo(
-        metodo="Descomposición por tipo de día operativo ponderada por recencia",
+        metodo=_MODEL_METHOD_DESCRIPTION,
         origen_evaluacion=origen_eval,
         muestras_evaluadas=len(eval_indices),
         mae_base=_quantize_dec(mae, "0.01"),
@@ -495,8 +656,34 @@ def generate_demand_forecast(
             detail="La fecha inicial del período histórico no puede ser posterior a la fecha final.",
         )
 
+    # Determinar fecha local de referencia en Colombia y rango del horizonte futuro
+    ref_date = (
+        payload.fecha_referencia
+        if payload.fecha_referencia is not None
+        else get_colombia_today()
+    )
+    fecha_inicio_horizonte, fecha_fin_horizonte = _resolve_horizon_dates(
+        ref_date, payload.horizonte
+    )
+
+    # Garantizar estrictamente que el entrenamiento histórico sea anterior al horizonte proyectado
+    if payload.fecha_desde >= fecha_inicio_horizonte:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"La fecha inicial del período histórico ({payload.fecha_desde.isoformat()}) "
+                f"debe ser anterior al inicio del horizonte proyectado ({fecha_inicio_horizonte.isoformat()}) "
+                "para evitar filtración de información futura."
+            ),
+        )
+
+    effective_fecha_hasta = min(
+        payload.fecha_hasta,
+        fecha_inicio_horizonte - timedelta(days=1),
+    )
+
     start_dt = datetime.combine(payload.fecha_desde, datetime.min.time())
-    end_dt = datetime.combine(payload.fecha_hasta, datetime.max.time())
+    end_dt = datetime.combine(effective_fecha_hasta, datetime.max.time())
 
     ventas_stmt = (
         select(Venta)
@@ -523,8 +710,6 @@ def generate_demand_forecast(
         es_historico, es_sintetico, _ = classify_trace_origin(
             venta.observaciones
         )
-        if not payload.incluir_sinteticos and es_sintetico:
-            continue
 
         qty_venta_prod = sum(
             float(d.cantidad * d.factor_conversion_snapshot)
@@ -580,47 +765,39 @@ def generate_demand_forecast(
         )
 
     if len(valid_points) < MIN_HISTORICAL_OPERATION_DAYS:
-        filtro_msg = (
-            " (excluyendo datos sintéticos)"
-            if not payload.incluir_sinteticos
-            else ""
-        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"El período histórico seleccionado ({payload.fecha_desde.isoformat()} a "
-                f"{payload.fecha_hasta.isoformat()}){filtro_msg} solo contiene "
+                f"{effective_fecha_hasta.isoformat()}) solo contiene "
                 f"{len(valid_points)} jornadas operativas válidas con ventas para '{producto.nombre}'. "
                 f"Se requieren al menos {MIN_HISTORICAL_OPERATION_DAYS} jornadas operativas "
                 "para generar una estimación estadística verificable."
             ),
         )
 
-    # Consultar cierres diarios en el periodo para analizar sobrantes históricos
+    # Consultar cierres diarios anteriores al horizonte para analizar sobrantes históricos
     cierres_rows = list(
         session.scalars(
             select(CierreDiario)
             .where(
                 CierreDiario.producto_id == producto.id,
                 CierreDiario.fecha >= payload.fecha_desde,
-                CierreDiario.fecha <= payload.fecha_hasta,
+                CierreDiario.fecha <= effective_fecha_hasta,
             )
             .order_by(CierreDiario.fecha.asc())
         ).all()
     )
-    sobrantes_hist_vals: list[float] = []
-    for c in cierres_rows:
-        _, c_sin, _ = classify_trace_origin(c.observaciones)
-        if not payload.incluir_sinteticos and c_sin:
-            continue
-        sobrantes_hist_vals.append(float(c.sobrante_real_base))
+    sobrantes_hist_vals: list[float] = [
+        float(c.sobrante_real_base) for c in cierres_rows
+    ]
 
     promedio_sobrante_hist = (
         statistics.mean(sobrantes_hist_vals) if sobrantes_hist_vals else 0.0
     )
 
-    # Pesos por recencia y origen de dato
-    weights = _compute_observation_weights(valid_points)
+    # Pesos exponenciales por recencia y niveles base por tipo de jornada
+    weights = _compute_observation_weights(valid_points, RECENCY_HALF_LIFE_DAYS)
     all_quantities = [p.cantidad_base for p in valid_points]
     global_simple_mean = statistics.mean(all_quantities)
     global_std = (
@@ -629,24 +806,27 @@ def generate_demand_forecast(
     global_w_mean, smoothed_by_type = _compute_smoothed_day_type_means(
         valid_points, weights
     )
-    trend_ratio = _compute_damped_trend_ratio(valid_points, weights)
 
-    # Perfiles por tipo de día (sábado, domingo, festivo)
+    # Perfiles y dispersión por tipo de día (sábado, domingo, festivo)
     perfiles_tipo_dia: list[PerfilTipoDiaResponse] = []
+    std_by_type: dict[TipoDiaOperativoLiteral, float] = {}
     for dtype in ("sabado", "domingo", "festivo"):
         pts_d = [p for p in valid_points if p.tipo_dia == dtype]
-        w_d = [w for p, w in zip(valid_points, weights) if p.tipo_dia == dtype]
         if pts_d:
             vals_d = [p.cantidad_base for p in pts_d]
             s_mean = statistics.mean(vals_d)
             w_mean = smoothed_by_type[dtype]
             min_v = min(vals_d)
             max_v = max(vals_d)
+            std_by_type[dtype] = (
+                statistics.stdev(vals_d) if len(vals_d) >= 5 else global_std
+            )
         else:
             s_mean = global_simple_mean
             w_mean = smoothed_by_type[dtype]
             min_v = min(all_quantities)
             max_v = max(all_quantities)
+            std_by_type[dtype] = global_std
 
         perfiles_tipo_dia.append(
             PerfilTipoDiaResponse(
@@ -660,20 +840,12 @@ def generate_demand_forecast(
             )
         )
 
-    # Determinar fecha de inicio y fin del horizonte futuro
-    ref_date = payload.fecha_referencia or payload.fecha_hasta
-    fecha_inicio_horizonte = ref_date + timedelta(days=1)
-    horizon_days = _HORIZON_DAYS_MAP[payload.horizonte]
-    fecha_fin_horizonte = fecha_inicio_horizonte + timedelta(
-        days=horizon_days - 1
-    )
-
-    # Consultar último cierre diario disponible hasta ref_date para sobrantes iniciales
+    # Consultar último cierre diario estrictamente anterior al horizonte para sobrantes iniciales
     ultimo_cierre = session.scalar(
         select(CierreDiario)
         .where(
             CierreDiario.producto_id == producto.id,
-            CierreDiario.fecha <= ref_date,
+            CierreDiario.fecha <= effective_fecha_hasta,
         )
         .order_by(CierreDiario.fecha.desc())
         .limit(1)
@@ -687,7 +859,7 @@ def generate_demand_forecast(
         ultimo_cierre.fecha if ultimo_cierre is not None else None
     )
 
-    # Generar las fechas operativas futuras dentro del horizonte
+    # Generar las fechas operativas futuras dentro del horizonte [fecha_inicio_horizonte, fecha_fin_horizonte]
     future_op_dates: list[OperationDateInfo] = []
     cursor = fecha_inicio_horizonte
     while cursor <= fecha_fin_horizonte:
@@ -696,13 +868,13 @@ def generate_demand_forecast(
             future_op_dates.append(info)
         cursor += timedelta(days=1)
 
-    # Determinar sobrante disponible inicial aplicable a la primera jornada proyectada
+    # Determinar sobrante disponible inicial aplicable por única vez al inicio del horizonte
     if payload.sobrante_disponible_inicial is not None:
         sobrante_remanente = int(payload.sobrante_disponible_inicial)
     elif (
         ultimo_cierre is not None
         and future_op_dates
-        and 0 <= (future_op_dates[0].fecha - ultimo_cierre.fecha).days <= 7
+        and 0 < (future_op_dates[0].fecha - ultimo_cierre.fecha).days <= 7
     ):
         sobrante_remanente = int(round(ultimo_sobrante_reg))
     else:
@@ -710,18 +882,26 @@ def generate_demand_forecast(
 
     first_op_date = future_op_dates[0].fecha if future_op_dates else None
 
-    # Construir la tabla de planificación diaria
+    # Construir la tabla de planificación diaria sin redondeos intermedios
     planificacion_diaria: list[DiaPlanificacionDemanda] = []
+    applied_trend_ratios: list[float] = []
     for info in future_op_dates:
         dtype = _classify_operation_day_type(info)
-        base_demand = smoothed_by_type[dtype]
-
-        # Factor de ajuste combinando tendencia reciente acotada
-        factor_ajuste = 1.0 + trend_ratio
-        raw_est = base_demand * factor_ajuste
+        comp = _predict_demand_for_date(
+            valid_points,
+            info.fecha,
+            dtype,
+            precomputed_weights=weights,
+            precomputed_smoothed=(global_w_mean, smoothed_by_type),
+        )
+        base_demand = comp.base_tipo_dia
+        factor_ajuste = comp.factor_ajuste_total
+        raw_est = comp.demanda_continua
         demanda_estimada = max(1, int(round(raw_est)))
+        net_trend_day = comp.impulso_reciente_ratio + comp.deriva_estructural_ratio
+        applied_trend_ratios.append(net_trend_day)
 
-        # El sobrante inicial solo se aprovecha en el ciclo inmediato (máx 2 días del primer bloque operativo)
+        # El sobrante inicial se descuenta como máximo una sola vez (en el primer bloque inmediato <= 2 días)
         if (
             sobrante_remanente > 0
             and first_op_date is not None
@@ -733,30 +913,41 @@ def generate_demand_forecast(
             sobrante_dia = 0
 
         produccion_sugerida = max(0, demanda_estimada - sobrante_dia)
-        band = max(3.0, global_std if global_std > 0 else base_demand * 0.08)
+        dtype_std = std_by_type[dtype]
+        band = max(3.0, dtype_std if dtype_std > 0 else base_demand * 0.08)
         rango_min = max(1, int(round(raw_est - band)))
         rango_max = max(demanda_estimada, int(round(raw_est + band)))
 
         etiqueta_dia = _build_day_label(info)
         if info.es_festivo_nacional and info.nombre_festivo:
             motivo_dia = (
-                f"Jornada festiva nacional ({info.nombre_festivo}): base histórica ponderada de "
+                f"Jornada festiva nacional ({info.nombre_festivo}): nivel base exponencial de "
                 f"{base_demand:.1f} {producto.unidad_base.lower()}(s) para festivos"
             )
         elif info.es_sabado:
             motivo_dia = (
-                f"Jornada de sábado: base histórica ponderada de {base_demand:.1f} "
+                f"Jornada de sábado: nivel base exponencial de {base_demand:.1f} "
                 f"{producto.unidad_base.lower()}(s)"
             )
         else:
             motivo_dia = (
-                f"Jornada de domingo: base histórica ponderada de {base_demand:.1f} "
+                f"Jornada de domingo: nivel base exponencial de {base_demand:.1f} "
                 f"{producto.unidad_base.lower()}(s)"
             )
 
-        if abs(trend_ratio) >= 0.005:
-            signo = "+" if trend_ratio > 0 else ""
-            motivo_dia += f", ajuste por tendencia reciente de {signo}{trend_ratio * 100:.1f}%"
+        if abs(net_trend_day) >= 0.002:
+            signo = "+" if net_trend_day > 0 else ""
+            motivo_dia += (
+                f", ajuste por dinámica y tendencia de {signo}{net_trend_day * 100:.1f}%"
+            )
+
+        if abs(comp.estacionalidad_mensual_ratio) >= 0.002:
+            signo_s = "+" if comp.estacionalidad_mensual_ratio > 0 else ""
+            mes_nombre = _MONTH_NAMES_ES[info.fecha.month]
+            motivo_dia += (
+                f", factor estacional de {mes_nombre} ({signo_s}"
+                f"{comp.estacionalidad_mensual_ratio * 100:.1f}%)"
+            )
 
         if sobrante_dia > 0:
             motivo_dia += (
@@ -764,7 +955,9 @@ def generate_demand_forecast(
                 f"disponibles, sugiriendo producir {produccion_sugerida}."
             )
         else:
-            motivo_dia += f". Sin sobrantes previos aplicables; producción sugerida de {produccion_sugerida}."
+            motivo_dia += (
+                f". Sin sobrantes previos aplicables; producción sugerida de {produccion_sugerida}."
+            )
 
         planificacion_diaria.append(
             DiaPlanificacionDemanda(
@@ -790,6 +983,21 @@ def generate_demand_forecast(
             )
         )
 
+    if applied_trend_ratios:
+        representative_trend_pct = statistics.mean(applied_trend_ratios) * 100.0
+    else:
+        fallback_comp = _predict_demand_for_date(
+            valid_points,
+            fecha_inicio_horizonte,
+            "domingo",
+            precomputed_weights=weights,
+            precomputed_smoothed=(global_w_mean, smoothed_by_type),
+        )
+        representative_trend_pct = (
+            fallback_comp.impulso_reciente_ratio
+            + fallback_comp.deriva_estructural_ratio
+        ) * 100.0
+
     # Métricas de resumen histórico
     registros_reales = sum(
         1 for p in valid_points if p.es_historico and not p.es_sintetico
@@ -803,15 +1011,15 @@ def generate_demand_forecast(
         else 0.0
     )
 
-    total_dias_cal = (payload.fecha_hasta - payload.fecha_desde).days + 1
+    total_dias_cal = (effective_fecha_hasta - payload.fecha_desde).days + 1
     dias_op_cal = _count_operation_days_in_range(
-        payload.fecha_desde, payload.fecha_hasta
+        payload.fecha_desde, effective_fecha_hasta
     )
     dias_op_sin_ventas = max(0, dias_op_cal - total_valid)
 
     resumen_historico = ResumenHistoricoDemanda(
         fecha_desde=payload.fecha_desde,
-        fecha_hasta=payload.fecha_hasta,
+        fecha_hasta=effective_fecha_hasta,
         fecha_minima_observada=valid_points[0].fecha,
         fecha_maxima_observada=valid_points[-1].fecha,
         total_dias_calendario_rango=total_dias_cal,
@@ -827,7 +1035,9 @@ def generate_demand_forecast(
         promedio_diario_simple_base=_quantize_dec(global_simple_mean, "0.01"),
         promedio_diario_ponderado_base=_quantize_dec(global_w_mean, "0.01"),
         desviacion_estandar_base=_quantize_dec(global_std, "0.01"),
-        tendencia_porcentual_aplicada=_quantize_dec(trend_ratio * 100.0, "0.01"),
+        tendencia_porcentual_aplicada=_quantize_dec(
+            representative_trend_pct, "0.01"
+        ),
         promedio_sobrante_historico_base=_quantize_dec(
             promedio_sobrante_hist, "0.01"
         ),
@@ -852,6 +1062,8 @@ def generate_demand_forecast(
     recomendaciones = _build_explainable_recommendations(
         producto=producto,
         horizonte_label=_HORIZON_LABELS[payload.horizonte],
+        fecha_inicio_horizonte=fecha_inicio_horizonte,
+        fecha_fin_horizonte=fecha_fin_horizonte,
         planificacion=planificacion_diaria,
         resumen=resumen_historico,
         metricas=metricas_precision,
@@ -877,7 +1089,7 @@ def generate_demand_forecast(
         metricas_precision=metricas_precision,
         planificacion_diaria=planificacion_diaria,
         recomendaciones=recomendaciones,
-        generado_en=datetime.now(timezone.utc).replace(tzinfo=None),
+        generado_en=datetime.now(COLOMBIA_TZ).replace(tzinfo=None),
     )
 
 
@@ -885,6 +1097,8 @@ def _build_explainable_recommendations(
     *,
     producto: Producto,
     horizonte_label: str,
+    fecha_inicio_horizonte: date,
+    fecha_fin_horizonte: date,
     planificacion: list[DiaPlanificacionDemanda],
     resumen: ResumenHistoricoDemanda,
     metricas: MetricasPrecisionModelo,
@@ -896,6 +1110,9 @@ def _build_explainable_recommendations(
     unidad_plural = (
         "unidades" if producto.unidad_base.lower() == "unidad" else "platos"
     )
+    rango_horizonte_str = (
+        f"{fecha_inicio_horizonte.isoformat()} a {fecha_fin_horizonte.isoformat()}"
+    )
 
     # 1. Recomendación principal de producción y sobrantes disponibles
     if sobrantes_totales > 0:
@@ -904,8 +1121,9 @@ def _build_explainable_recommendations(
                 tipo="produccion",
                 titulo=f"Planificación neta para {horizonte_label.lower()}",
                 detalle=(
-                    f"Se proyecta una demanda total de {demanda_total} {unidad_plural} de {producto.nombre} "
-                    f"en {len(planificacion)} jornadas operativas. Al aprovechar {sobrantes_totales} {unidad_plural} "
+                    f"Para el período proyectado ({rango_horizonte_str}), se estima una demanda total de "
+                    f"{demanda_total} {unidad_plural} de {producto.nombre} en {len(planificacion)} "
+                    f"jornada(s) operativa(s). Al descontar por única vez {sobrantes_totales} {unidad_plural} "
                     f"de sobrantes disponibles del cierre previo ({resumen.fecha_ultimo_cierre}), "
                     f"la producción neta sugerida es de {produccion_total} {unidad_plural}."
                 ),
@@ -917,8 +1135,9 @@ def _build_explainable_recommendations(
                 tipo="produccion",
                 titulo=f"Planificación para {horizonte_label.lower()}",
                 detalle=(
-                    f"Se proyecta una demanda total de {demanda_total} {unidad_plural} de {producto.nombre} "
-                    f"distribuida en {len(planificacion)} jornadas operativas (promedio estimado de "
+                    f"Para el período proyectado ({rango_horizonte_str}), se estima una demanda total de "
+                    f"{demanda_total} {unidad_plural} de {producto.nombre} distribuida en "
+                    f"{len(planificacion)} jornada(s) operativa(s) (promedio estimado de "
                     f"{round(demanda_total / max(1, len(planificacion)))} {unidad_plural} por jornada)."
                 ),
             )

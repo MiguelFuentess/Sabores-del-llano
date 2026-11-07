@@ -1,14 +1,26 @@
+import { useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import StatCard from '../../../components/ui/StatCard.jsx';
 import useOrders from '../../orders/hooks/useOrders.js';
 import { formatDeliveryDate, orderDescription } from '../../orders/utils/orderPresentation.js';
 import useSales from '../../sales/hooks/useSales.js';
-import { summarizeSales } from '../../sales/utils/filterSales.js';
 
 const currency = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-const chartDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const chartBase = 224;
-const chartHeight = 184;
+
+const MONTHS = [
+  { value: 1, label: 'Enero' },
+  { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' },
+  { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' },
+  { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' },
+  { value: 12, label: 'Diciembre' },
+];
 
 function compactCurrency(value) {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}M`;
@@ -16,53 +28,147 @@ function compactCurrency(value) {
   return '$0';
 }
 
-function SalesChart({ summary }) {
-  const maxValue = Math.max(...Object.values(summary.byDay).flatMap((day) => [day.lechona, day.hayacas]), 0);
-  const gridStep = maxValue ? Math.max(1000, Math.ceil(maxValue / 4 / 1000) * 1000) : 1000;
+function SalesChart({ sales, month, year }) {
+  const monthData = MONTHS.find((m) => m.value === month) ?? MONTHS[9];
+  const monthLabel = monthData.label.toLowerCase();
+  const totalDays = new Date(year, month, 0).getDate();
+  const monthDays = Array.from({ length: totalDays }, (_, i) => i + 1);
+
+  const salesByDay = useMemo(() => {
+    const initial = {};
+    for (let d = 1; d <= totalDays; d++) {
+      initial[d] = { lechona: 0, hayacas: 0 };
+    }
+    sales.forEach((sale) => {
+      const day = parseInt(String(sale.date || '').slice(8, 10), 10);
+      if (!initial[day]) return;
+      if (Array.isArray(sale.detalles) && sale.detalles.length > 0) {
+        sale.detalles.forEach((det) => {
+          const prodName = String(det.producto_nombre ?? det.product ?? '').toLowerCase();
+          const prodKey = prodName.startsWith('haya') ? 'hayacas' : 'lechona';
+          const amount =
+            Number(det.subtotal ?? Number(det.cantidad || 0) * Number(det.precio_unitario || 0)) ||
+            Number(sale.total || 0);
+          initial[day][prodKey] += amount;
+        });
+      } else {
+        const prodKey = String(sale.product || '').toLowerCase().startsWith('haya') ? 'hayacas' : 'lechona';
+        initial[day][prodKey] += Number(sale.total || 0);
+      }
+    });
+    return initial;
+  }, [sales, totalDays]);
+
+  const maxValue = Math.max(
+    ...Object.values(salesByDay).flatMap((day) => [day.lechona, day.hayacas]),
+    0
+  );
+  const gridStep = maxValue ? Math.max(1000, Math.ceil(maxValue / 4 / 1000) * 1000) : 250000;
   const chartMax = gridStep * 4;
   const gridValues = [4, 3, 2, 1, 0].map((step) => step * gridStep);
-  const xForDay = (index) => 126 + index * 108;
+
+  const chartBase = 224;
+  const chartHeight = 184;
+  const xStart = 76;
+  const xEnd = 930;
+  const totalWidth = xEnd - xStart;
+  const colWidth = totalWidth / totalDays;
+  const barWidth = Math.max(6, Math.floor(colWidth * 0.32));
+
+  const xForDayCenter = (dayNumber) => xStart + (dayNumber - 0.5) * colWidth;
   const yForValue = (value) => chartBase - (value / chartMax) * chartHeight;
 
-  return <section className="dashboard-card dashboard-chart" aria-labelledby="sales-chart-title">
-    <div className="dashboard-card__header dashboard-chart__header">
-      <div className="dashboard-card__title"><svg className="dashboard-icon dashboard-icon--filled" viewBox="0 0 24 24" aria-hidden="true"><rect height="11" rx="1" width="4" x="3" y="10"/><rect height="17" rx="1" width="4" x="10" y="4"/><rect height="8" rx="1" width="4" x="17" y="13"/></svg><h3 id="sales-chart-title">Ventas por Días</h3></div>
-      <div className="dashboard-chart__legend" aria-label="Productos">
-        <span><i className="legend-dot legend-dot--lechona"/>Lechona Tolimense</span>
-        <span><i className="legend-dot legend-dot--hayacas"/>Hayacas Campesinas</span>
+  return (
+    <section className="dashboard-card dashboard-chart" aria-labelledby="sales-chart-title">
+      <div className="dashboard-card__header dashboard-chart__header">
+        <div className="dashboard-card__title">
+          <svg className="dashboard-icon dashboard-icon--filled" viewBox="0 0 24 24" aria-hidden="true">
+            <rect height="11" rx="1" width="4" x="3" y="10" />
+            <rect height="17" rx="1" width="4" x="10" y="4" />
+            <rect height="8" rx="1" width="4" x="17" y="13" />
+          </svg>
+          <h3 id="sales-chart-title">
+            Ventas por días del mes de {monthLabel} de {year}
+          </h3>
+        </div>
+        <div className="dashboard-chart__legend" aria-label="Productos">
+          <span><i className="legend-dot legend-dot--lechona" />Lechona Tolimense</span>
+          <span><i className="legend-dot legend-dot--hayacas" />Hayacas Campesinas</span>
+        </div>
       </div>
-    </div>
-    <div className="dashboard-chart__canvas">
-      <svg viewBox="0 0 900 286" role="img" aria-labelledby="chart-title chart-description">
-        <title id="chart-title">Ventas de lechona y hayacas por día de la semana</title>
-        <desc id="chart-description">Gráfico de barras agrupadas con los registros guardados en el módulo de Ventas.</desc>
-        {gridValues.map((value) => {
-          const y = yForValue(value);
-          return <g key={value}>
-            <text className="chart-axis-label" x="57" y={y + 4} textAnchor="end">{compactCurrency(value)}</text>
-            <line className={value === 0 ? 'chart-grid chart-grid--baseline' : 'chart-grid'} x1="76" y1={y} x2="880" y2={y} />
-          </g>;
-        })}
-        {chartDays.map((day, index) => {
-          const values = summary.byDay[day] ?? { lechona: 0, hayacas: 0 };
-          const center = xForDay(index);
-          return <g key={day}>
-            {[{ key: 'lechona', x: center - 27, fill: '#9f321d' }, { key: 'hayacas', x: center + 5, fill: '#2d5a3d' }].map(({ key, x, fill }) => {
-              const value = values[key];
-              const height = value === 0 ? 3 : Math.max((value / chartMax) * chartHeight, 3);
-              const y = chartBase - height;
-              return <g key={key}>
-                <title>{`${day} · ${key === 'lechona' ? 'Lechona Tolimense' : 'Hayacas Campesinas'}: ${currency.format(value)}`}</title>
-                <text className="chart-value-label" x={x + 11} y={y - 7} textAnchor="middle" fill={fill}>{compactCurrency(value)}</text>
-                <rect x={x} y={y} width="22" height={height} rx="3" fill={fill} />
-              </g>;
-            })}
-            <text className="chart-day-label" x={center - 2} y="266" textAnchor="middle">{day}</text>
-          </g>;
-        })}
-      </svg>
-    </div>
-  </section>;
+      <div className="dashboard-chart__canvas">
+        <svg viewBox="0 0 960 286" role="img" aria-labelledby="chart-title chart-description">
+          <title id="chart-title">
+            Ventas de lechona y hayacas por días del mes de {monthLabel} de {year}
+          </title>
+          <desc id="chart-description">
+            Gráfico de barras agrupadas con las ventas diarias registradas para {monthLabel} de {year}.
+          </desc>
+          {gridValues.map((value) => {
+            const y = yForValue(value);
+            return (
+              <g key={value}>
+                <text className="chart-axis-label" x="65" y={y + 4} textAnchor="end">
+                  {compactCurrency(value)}
+                </text>
+                <line
+                  className={value === 0 ? 'chart-grid chart-grid--baseline' : 'chart-grid'}
+                  x1={xStart}
+                  y1={y}
+                  x2={xEnd}
+                  y2={y}
+                />
+              </g>
+            );
+          })}
+          {monthDays.map((d) => {
+            const values = salesByDay[d] ?? { lechona: 0, hayacas: 0 };
+            const center = xForDayCenter(d);
+            const hasSales = values.lechona > 0 || values.hayacas > 0;
+
+            return (
+              <g key={d}>
+                {[
+                  { key: 'lechona', x: center - barWidth - 1, fill: '#9f321d' },
+                  { key: 'hayacas', x: center + 1, fill: '#2d5a3d' },
+                ].map(({ key, x, fill }) => {
+                  const value = values[key];
+                  const height = value === 0 ? 3 : Math.max((value / chartMax) * chartHeight, 3);
+                  const y = chartBase - height;
+                  return (
+                    <g key={key}>
+                      <title>{`Día ${d} · ${key === 'lechona' ? 'Lechona Tolimense' : 'Hayacas Campesinas'}: ${currency.format(value)}`}</title>
+                      {value > 0 && (
+                        <text
+                          className="chart-value-label"
+                          x={x + barWidth / 2}
+                          y={Math.max(14, y - 6)}
+                          textAnchor="middle"
+                          fill={fill}
+                          fontSize="9"
+                        >
+                          {compactCurrency(value)}
+                        </text>
+                      )}
+                      <rect x={x} y={y} width={barWidth} height={height} rx="2" fill={fill} />
+                    </g>
+                  );
+                })}
+                <text
+                  className={`chart-day-label${hasSales ? ' chart-day-label--peak' : ''}`}
+                  x={center}
+                  y="266"
+                  textAnchor="middle"
+                >
+                  {d}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </section>
+  );
 }
 
 function formatOrderSchedule(order) {
@@ -94,27 +200,161 @@ function RecentOrders({ orders, totalOrders }) {
   </section>;
 }
 
-export default function DashboardPage() {
-  const { openMenu } = useOutletContext();
+export default function DashboardPage({ initialMonth = 10, initialYear = 2026 } = {}) {
+  const outletContext = useOutletContext();
+  const openMenu = outletContext?.openMenu;
   const { orders } = useOrders();
   const { sales } = useSales();
-  const summary = summarizeSales(sales);
-  const recentOrders = [...orders].sort((a, b) => b.registeredDate.localeCompare(a.registeredDate) || b.orderNumber.localeCompare(a.orderNumber)).slice(0, 5);
-  return <div className="dashboard-page">
-    <button className="dashboard-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}><span/><span/><span/></button>
-    <header className="dashboard-welcome">
-      <h1>¡Buenos días, Doña Martha!</h1>
-      <p>Resumen general de producción, pedidos y entregas del día</p>
-    </header>
-    <section className="dashboard-stats" aria-label="Indicadores del panel">
-      <StatCard label="Ventas registradas" value={currency.format(summary.total)} detail="COP" />
-      <StatCard label="Pedidos registrados" value={orders.length} detail="pedidos" />
-      <StatCard label="Lechona vendida" value={summary.quantity.lechona ?? 0} detail="porciones" />
-      <StatCard label="Hayacas vendidas" value={summary.quantity.hayacas ?? 0} detail="unidades" />
-    </section>
-    <SalesChart summary={summary} />
-    <RecentOrders orders={recentOrders} totalOrders={orders.length} />
-  </div>;
+
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+
+  const availableYears = useMemo(() => {
+    const years = new Set([2024, 2025, 2026]);
+    sales.forEach((s) => {
+      if (s.date) {
+        const y = parseInt(String(s.date).slice(0, 4), 10);
+        if (!isNaN(y)) years.add(y);
+      }
+    });
+    orders.forEach((o) => {
+      const d = o.registeredDate || o.date;
+      if (d) {
+        const y = parseInt(String(d).slice(0, 4), 10);
+        if (!isNaN(y)) years.add(y);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [sales, orders]);
+
+  const { startDate, endDate } = useMemo(() => {
+    const monthStr = String(selectedMonth).padStart(2, '0');
+    const yearStr = String(selectedYear);
+    const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+    return {
+      startDate: `${yearStr}-${monthStr}-01`,
+      endDate: `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }, [selectedMonth, selectedYear]);
+
+  const periodSales = useMemo(
+    () =>
+      sales.filter((sale) => {
+        const dateStr = String(sale.date || '').slice(0, 10);
+        return dateStr >= startDate && dateStr <= endDate;
+      }),
+    [sales, startDate, endDate]
+  );
+
+  const periodOrders = useMemo(
+    () =>
+      orders.filter((order) => {
+        const dateStr = String(order.registeredDate || order.date || '').slice(0, 10);
+        return dateStr >= startDate && dateStr <= endDate;
+      }),
+    [orders, startDate, endDate]
+  );
+
+  const periodSummary = useMemo(() => {
+    let total = 0;
+    let count = 0;
+    const units = { lechona: 0, hayacas: 0 };
+
+    periodSales.forEach((sale) => {
+      total += Number(sale.total || 0);
+      count += 1;
+
+      if (Array.isArray(sale.detalles) && sale.detalles.length > 0) {
+        sale.detalles.forEach((det) => {
+          const prodName = String(det.producto_nombre ?? det.product ?? '').toLowerCase();
+          const prodKey = prodName.startsWith('haya') ? 'hayacas' : 'lechona';
+          const qty = Number(det.cantidad ?? det.quantity ?? 0);
+          units[prodKey] = (units[prodKey] ?? 0) + qty;
+        });
+      } else {
+        const prodKey = String(sale.product || '').toLowerCase().startsWith('haya') ? 'hayacas' : 'lechona';
+        const qty = Number(sale.quantity || 0);
+        units[prodKey] = (units[prodKey] ?? 0) + qty;
+      }
+    });
+
+    return { total, count, units, quantity: units };
+  }, [periodSales]);
+
+  const recentOrders = useMemo(
+    () =>
+      [...orders]
+        .sort(
+          (a, b) =>
+            b.registeredDate.localeCompare(a.registeredDate) ||
+            b.orderNumber.localeCompare(a.orderNumber)
+        )
+        .slice(0, 5),
+    [orders]
+  );
+
+  return (
+    <div className="dashboard-page">
+      <button className="dashboard-mobile-menu" type="button" aria-label="Abrir menú" onClick={openMenu}>
+        <span />
+        <span />
+        <span />
+      </button>
+
+      <header className="dashboard-welcome">
+        <h1>¡Buenos días, Doña Luz!</h1>
+        <p>Resumen general de producción, pedidos y entregas del mes</p>
+      </header>
+
+      <div className="dashboard-period-filter" aria-label="Filtro de período">
+        <div className="dashboard-period-filter__group">
+          <label htmlFor="dashboard-month-select" className="dashboard-period-filter__label">
+            Mes:
+          </label>
+          <select
+            id="dashboard-month-select"
+            className="dashboard-period-filter__select"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            aria-label="Seleccionar mes"
+          >
+            {MONTHS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="dashboard-period-filter__group">
+          <label htmlFor="dashboard-year-select" className="dashboard-period-filter__label">
+            Año:
+          </label>
+          <select
+            id="dashboard-year-select"
+            className="dashboard-period-filter__select"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            aria-label="Seleccionar año"
+          >
+            {availableYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <section className="dashboard-stats" aria-label="Indicadores del panel">
+        <StatCard label="Ventas registradas" value={currency.format(periodSummary.total)} detail="COP" />
+        <StatCard label="Pedidos registrados" value={periodOrders.length} detail="pedidos" />
+        <StatCard label="Lechona vendida" value={periodSummary.quantity.lechona ?? 0} detail="porciones" />
+        <StatCard label="Hayacas vendidas" value={periodSummary.quantity.hayacas ?? 0} detail="unidades" />
+      </section>
+
+      <SalesChart sales={periodSales} month={selectedMonth} year={selectedYear} />
+      <RecentOrders orders={recentOrders} totalOrders={orders.length} />
+    </div>
+  );
 }
-
-

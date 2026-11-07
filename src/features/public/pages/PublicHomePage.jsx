@@ -1,5 +1,10 @@
 import { useState } from 'react';
+import AcaciasMap from '../components/AcaciasMap.jsx';
 import '../public.css';
+
+const WHATSAPP_PHONE = '573142661472';
+const WHATSAPP_MESSAGE = 'Hola, estoy interesado en sus productos. ¿Me pueden brindar información?';
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
 export function calculateLechonaEstimate(personCount) {
   const requestedCount = Number(personCount);
@@ -20,7 +25,6 @@ const assets = {
   hero: 'https://lh3.googleusercontent.com/aida-public/AB6AXuALJSuV-syUuNvHiYjzdJZn3B-qySu4PJHFghYzmEghd3kxa4vzOoq3SdHCcPfJHoxlHOIkyQm6mSZKSsdn0ThucP9Vqs6XQ_aj5PJXdysxIIQnSaS-RKS85dxmhfN41B0oJwNaLv9-dweAf2-zncmgN5sOKHjxj7-Gq6TMxeWhiFoVRRmMltCORrWPdrflQIACwKqss2Fm3yfJXzRCqd_sslSLVwZwT0Za0V4jgYaUXxJzanKOOtxy',
   lechona: 'https://static.wixstatic.com/media/a7501f_31dbd16b1ca14a3a8144b42f93c77715~mv2.jpg/v1/fill/w_550,h_389,al_c,q_80,enc_avif,quality_auto/a7501f_31dbd16b1ca14a3a8144b42f93c77715~mv2.jpg',
   hayacas: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDZm58gnReNPK6QEHAYfJD5AlfzZF9OznFy74N7Ce-BykRKOxNEsxuYLoqrJ7kZuNvRImuqs4Xhr279bRpzEu1HqM8wtjBajbolK2fLT12IZoym3IKmHgNJI4lDdfa92rG1gKY7Dkowe7dBQ1olKkz5BFHv_AZLyd9KKjQC63OIQI2rqFN_q33DranprNT1QV1HBm1nm6RiJ_Qs5Y-t9cQ0uL0JhMqQNeiGtX-FiD05Zy8Y_1i-vYld',
-  coverageMap: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCfZD_nEJ6LoBKyTqBsL_3RgUPaZhTmh2RR-W7EjRB7jJNfJ4W5sonPJdNAGJnZs2AyGIj58vNqLBoQuR0ij8OwH637A6coESTgO7wFvGx3y9nMiEkix3aI58HV9umC3-8Pum_JjWMdC9IynvmccK9BdZgRyY_azktlluQMldoamDcULDZHGLy7q0-J1en_keCZwcmX_v88_cPRTtVTNb93i9fPghkYExK-ROVj9ow',
 };
 
 function Icon({ children, className = '' }) {
@@ -28,7 +32,16 @@ function Icon({ children, className = '' }) {
 }
 
 function ContactDisplay({ children, className = '' }) {
-  return <span className={`public-contact-display ${className}`.trim()} aria-label="Contacto por WhatsApp no configurado" title="WhatsApp no está configurado">{children}</span>;
+  return (
+    <a
+      href={WHATSAPP_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`public-contact-display ${className}`.trim()}
+    >
+      {children}
+    </a>
+  );
 }
 
 const craftSteps = [
@@ -207,8 +220,11 @@ export default function PublicHomePage() {
           <article><h3><Icon>event_available</Icon>Eventos Todos los Días</h3><p>Cojines y pedidos masivos (desde 20 porciones) se despachan de Lunes a Domingo con reserva previa de 48 horas.</p></article>
         </div>
         <h3 className="public-delivery__map-title">Zona de Cobertura y Domicilios</h3>
-        <div className="public-coverage-map" style={{ backgroundImage: `url("${assets.coverageMap}")` }} role="img" aria-label="Mapa de cobertura de domicilios en Acacías, Meta y zonas aledañas del Llano">
-          <span><Icon>pin_drop</Icon>Despachos en Acacías, Meta y zonas aledañas</span>
+        <div className="public-coverage-map">
+          <AcaciasMap />
+          <span className="public-coverage-map__badge">
+            <Icon>pin_drop</Icon>Despachos en Acacías, Meta y zonas aledañas
+          </span>
         </div>
       </section>
 

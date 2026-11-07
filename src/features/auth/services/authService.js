@@ -117,10 +117,20 @@ export async function apiRequest(
 
   try {
     response = await window.fetch(`${getApiBaseUrl()}${path}`, fetchOptions);
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError') {
+      const abortError = new Error('La solicitud fue cancelada.');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
     try {
       response = await window.fetch(`/api${path}`, fetchOptions);
-    } catch {
+    } catch (fallbackError) {
+      if (signal?.aborted || fallbackError?.name === 'AbortError') {
+        const abortError = new Error('La solicitud fue cancelada.');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       throw new Error('No fue posible conectar con el servidor de Sabores del Llano.');
     }
   }
